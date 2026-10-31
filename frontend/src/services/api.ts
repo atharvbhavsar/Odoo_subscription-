@@ -43,6 +43,12 @@ export async function apiRequest<T = any>(
   const data = isJson ? await response.json() : null;
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      // Clear invalid / expired session tokens so subsequent requests don't keep failing with 401
+      localStorage.removeItem('brightloop_token');
+      localStorage.removeItem('brightloop_user');
+    }
+
     const errorMsg = data?.error?.message || `Request failed with status ${response.status}`;
     const err = new Error(errorMsg) as Error & { code?: string; details?: any; status: number };
     err.code = data?.error?.code || 'UNKNOWN_ERROR';

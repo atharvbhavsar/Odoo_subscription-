@@ -89,6 +89,10 @@ export const PlansPage: React.FC = () => {
 
   useEffect(() => {
     fetchPlans();
+    const interval = setInterval(() => {
+      fetchPlans();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter, searchQuery]);
 
   useEffect(() => {

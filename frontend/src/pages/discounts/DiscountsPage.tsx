@@ -84,6 +84,10 @@ export const DiscountsPage: React.FC = () => {
 
   useEffect(() => {
     fetchDiscounts();
+    const interval = setInterval(() => {
+      fetchDiscounts();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter, typeFilter, searchQuery]);
 
   useEffect(() => {
