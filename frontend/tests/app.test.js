@@ -45,3 +45,4 @@ test('Frontend RBAC: Navigation item filtering by role', () => {
   assert.deepStrictEqual(getNavForRole('staff'), staffNavItems);
   assert.deepStrictEqual(getNavForRole('admin'), staffNavItems);
 });
+

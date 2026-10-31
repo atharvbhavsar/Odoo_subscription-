@@ -26,3 +26,4 @@
 ## CORS and Cookie Configuration
 - In production, session cookies are configured with `secure: true` and `sameSite: 'none'`.
 - `cors` origin is set dynamically to `process.env.FRONTEND_URL` with `credentials: true`.
+
