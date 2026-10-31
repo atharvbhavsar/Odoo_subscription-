@@ -133,13 +133,15 @@ export interface Quotation {
   billing_frequency?: string;
   discount_id?: string | null;
   tax_id?: string | null;
-  status: 'draft' | 'quotation' | 'confirmed' | 'cancelled';
+  status: 'draft' | 'quotation' | 'sent' | 'confirmed' | 'cancelled' | 'expired';
   valid_until: string;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
   created_at: string;
+  subscription_id?: string | null;
+  subscription_number?: string | null;
   lines?: QuotationLine[];
 }
 

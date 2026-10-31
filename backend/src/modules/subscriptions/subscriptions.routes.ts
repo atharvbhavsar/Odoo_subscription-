@@ -150,6 +150,10 @@ subscriptionsRouter.post('/:id/renew', requireAuth, async (req: Request, res: Re
     return res.status(400).json({ error: { code: 'RENEW_NOT_ALLOWED', message: 'Plan does not permit renewal' } });
   }
 
+  if (sub.status === 'closed') {
+    return res.status(400).json({ error: { code: 'CANNOT_RENEW_CLOSED', message: 'Cannot renew a closed subscription' } });
+  }
+
   const today = new Date().toISOString().split('T')[0];
   await db.execute("UPDATE subscriptions SET status = 'active', next_billing_date = ? WHERE id = ?", [today, sub.id]);
   await AuditService.log('SUBSCRIPTION_RENEWED', 'subscriptions', sub.id, req.user?.id);
@@ -178,6 +182,10 @@ subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Re
 
   if (sub.status === 'closed') {
     return res.status(400).json({ error: { code: 'ALREADY_CLOSED', message: 'Subscription is already closed' } });
+  }
+
+  if (sub.status === 'expired') {
+    return res.status(400).json({ error: { code: 'ALREADY_EXPIRED', message: 'Subscription is already expired' } });
   }
 
   await db.execute("UPDATE subscriptions SET status = 'closed' WHERE id = ?", [sub.id]);
