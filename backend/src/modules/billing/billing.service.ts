@@ -42,6 +42,7 @@ export class BillingService {
       plan_id: string;
       status: string;
       next_billing_date: string;
+      end_date: string | null;
       billing_frequency: string;
       subtotal: number;
       discount_amount: number;
@@ -65,12 +66,22 @@ export class BillingService {
       try {
         await db.transaction(async () => {
           // Verify subscription is still active inside transaction
-          const currentSub = await db.queryOne<{ status: string; next_billing_date: string }>(
-            'SELECT status, next_billing_date FROM subscriptions WHERE id = ?',
+          const currentSub = await db.queryOne<{ status: string; next_billing_date: string; end_date: string | null }>(
+            'SELECT status, next_billing_date, end_date FROM subscriptions WHERE id = ?',
             [sub.id]
           );
 
           if (!currentSub || currentSub.status !== 'active') {
+            return;
+          }
+
+          // Check if subscription has expired
+          if (currentSub.end_date && currentSub.end_date < currentDate) {
+            await db.execute("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+            await AuditService.log('SUBSCRIPTION_EXPIRED', 'subscriptions', sub.id, triggerUserId, {
+              endDate: currentSub.end_date,
+              currentDate,
+            });
             return;
           }
 
@@ -142,8 +153,12 @@ export class BillingService {
             );
           }
 
-          // 3. Atomically advance next_billing_date
-          await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
+          // 3. Atomically advance next_billing_date or expire if end_date reached
+          if (currentSub.end_date && periodEnd >= currentSub.end_date) {
+            await db.execute("UPDATE subscriptions SET next_billing_date = ?, status = 'expired' WHERE id = ?", [periodEnd, sub.id]);
+          } else {
+            await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
+          }
 
           result.invoicesGenerated++;
           result.invoices.push({ id: invoiceId, invoiceNumber, amount: sub.total_amount });
@@ -162,4 +177,3 @@ export class BillingService {
     return result;
   }
 }
-

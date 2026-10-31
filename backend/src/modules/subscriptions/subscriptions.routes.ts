@@ -117,6 +117,32 @@ subscriptionsRouter.post('/:id/resume', requireAuth, async (req: Request, res: R
   res.json({ data: { id: sub.id, status: 'active' }, message: 'Subscription resumed' });
 });
 
+// Renew subscription
+subscriptionsRouter.post('/:id/renew', requireAuth, async (req: Request, res: Response) => {
+  const sub = await db.queryOne<{ id: string; customer_id: string; status: string; can_renew: number; billing_frequency: string }>(
+    `SELECT s.*, p.can_renew, p.billing_frequency FROM subscriptions s JOIN plans p ON s.plan_id = p.id WHERE s.id = ?`,
+    [req.params.id]
+  );
+
+  if (!sub) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
+  }
+
+  if (req.user?.role === 'customer' && req.user.customerId !== sub.customer_id) {
+    return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Unauthorized access' } });
+  }
+
+  if (!sub.can_renew) {
+    return res.status(400).json({ error: { code: 'RENEW_NOT_ALLOWED', message: 'Plan does not permit renewal' } });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  await db.execute("UPDATE subscriptions SET status = 'active', next_billing_date = ? WHERE id = ?", [today, sub.id]);
+  await AuditService.log('SUBSCRIPTION_RENEWED', 'subscriptions', sub.id, req.user?.id);
+
+  res.json({ data: { id: sub.id, status: 'active', next_billing_date: today }, message: 'Subscription renewed successfully' });
+});
+
 // Close subscription
 subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
   const sub = await db.queryOne<{ id: string; customer_id: string; status: string; can_close_early: number }>(
@@ -145,4 +171,3 @@ subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Re
 
   res.json({ data: { id: sub.id, status: 'closed' }, message: 'Subscription closed' });
 });
-
