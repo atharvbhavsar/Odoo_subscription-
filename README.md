@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Brightloop Logo](frontend/public/brightloop-logo.png)
+<img src="logo.png" alt="Brightloop Subscription Manager" width="480" />
 
 ### Unified Full-Lifecycle Subscription Management & Recurring Billing Platform
 
