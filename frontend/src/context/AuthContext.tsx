@@ -5,7 +5,7 @@ import { authService } from '../services/auth.service';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (data: { email: string; password: string }) => Promise<void>;
+  login: (data: { email: string; password: string }) => Promise<User>;
   register: (data: { email: string; password: string; name: string; companyName?: string; phone?: string; address?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -32,9 +32,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
   }, []);
 
-  const login = async (data: { email: string; password: string }) => {
+  const login = async (data: { email: string; password: string }): Promise<User> => {
     const res = await authService.login(data);
     setUser(res.user);
+    return res.user;
   };
 
   const register = async (data: { email: string; password: string; name: string; companyName?: string; phone?: string; address?: string }) => {
@@ -64,4 +65,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

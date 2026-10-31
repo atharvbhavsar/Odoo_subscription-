@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { dashboardService } from '../../services/payment.service';
 import { DashboardSummary } from '../../types';
 import { LoadingSpinner } from '../../components/common/Loading';
@@ -32,6 +34,11 @@ import {
 } from 'recharts';
 
 export const DashboardPage: React.FC = () => {
+  const { user } = useAuth();
+  if (user?.role === 'customer') {
+    return <Navigate to="/portal" replace />;
+  }
+
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

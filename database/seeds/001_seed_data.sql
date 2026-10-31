@@ -3,14 +3,13 @@
 -- Users: password is 'Password@123' (hashed via bcrypt or plain in dev fallback)
 INSERT OR IGNORE INTO users (id, email, password_hash, role)
 VALUES 
-  ('usr-admin-01', 'admin@brightloop.com', '$2b$10$wE995.UeNlHw/j2lJ0U2uehE71wZ7x5hQ4YpPn4M5g6V2yO5sD7ye', 'admin'),
-  ('usr-staff-01', 'staff@brightloop.com', '$2b$10$wE995.UeNlHw/j2lJ0U2uehE71wZ7x5hQ4YpPn4M5g6V2yO5sD7ye', 'staff'),
-  ('usr-cust-01', 'customer@acme.com', '$2b$10$wE995.UeNlHw/j2lJ0U2uehE71wZ7x5hQ4YpPn4M5g6V2yO5sD7ye', 'customer');
+  ('usr-admin-01', 'admin@brightloop.com', '$2a$10$WUSwErYIWPkG11kmzDaBBeePzZe3vxT8eQB1JURsHGcwvEIeny6Uu', 'admin'),
+  ('usr-staff-01', 'staff@brightloop.com', '$2a$10$WUSwErYIWPkG11kmzDaBBeePzZe3vxT8eQB1JURsHGcwvEIeny6Uu', 'staff'),
+  ('usr-cust-01', 'customer@acme.com', '$2a$10$WUSwErYIWPkG11kmzDaBBeePzZe3vxT8eQB1JURsHGcwvEIeny6Uu', 'customer');
 
 INSERT OR IGNORE INTO customer_profiles (id, user_id, name, company_name, phone, address)
 VALUES 
   ('cust-01', 'usr-cust-01', 'Acme Customer', 'Acme Corp', '+1-555-0199', '123 Market St, Tech City');
-
 -- Products & Variants
 INSERT OR IGNORE INTO products (id, name, type, sales_price, cost_price, is_active, notes)
 VALUES 
@@ -20,7 +19,6 @@ VALUES
 INSERT OR IGNORE INTO product_variants (id, product_id, attribute_name, attribute_value, price_extra, is_active)
 VALUES 
   ('var-01', 'prod-01', 'Brand Edition', 'Odoo Brand Edition', 560.00, 1);
-
 -- Plans
 INSERT OR IGNORE INTO plans (id, name, description, billing_frequency, billing_interval, price, min_qty, is_active, can_pause, can_renew, can_close_early, auto_close)
 VALUES 

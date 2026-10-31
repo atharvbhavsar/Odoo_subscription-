@@ -17,8 +17,12 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await login({ email, password });
-      navigate('/dashboard');
+      const user = await login({ email, password });
+      if (user.role === 'customer') {
+        navigate('/portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check credentials.');
     } finally {
@@ -135,4 +139,3 @@ export const LoginPage: React.FC = () => {
     </div>
   );
 };
-

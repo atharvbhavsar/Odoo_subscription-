@@ -6,6 +6,8 @@ dist/
 .DS_Store
 *.sqlite
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 coverage/
 
 # Prompts, AI agent specs, and private documentation
