@@ -55,8 +55,13 @@ export const quotationTemplateService = {
 };
 
 export const quotationService = {
-  async getQuotations() {
-    return apiRequest<Quotation[]>('/quotations');
+  async getQuotations(params?: { search?: string; status?: string; customer_id?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
+    if (params?.customer_id) query.append('customer_id', params.customer_id);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<Quotation[]>(`/quotations${queryString}`);
   },
 
   async getQuotation(id: string) {
@@ -69,6 +74,7 @@ export const quotationService = {
     discount_id?: string | null;
     tax_id?: string | null;
     valid_until: string;
+    status?: 'draft' | 'quotation' | 'sent';
     lines: Array<{
       product_id: string;
       variant_id?: string | null;
@@ -87,6 +93,19 @@ export const quotationService = {
       `/quotations/${id}/confirm`,
       { method: 'POST' }
     );
+  },
+
+  async cancelQuotation(id: string, reason?: string) {
+    return apiRequest<{ id: string; status: string }>(`/quotations/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async sendQuotation(id: string) {
+    return apiRequest<{ id: string; status: string }>(`/quotations/${id}/send`, {
+      method: 'POST',
+    });
   },
 };
 
@@ -111,6 +130,5 @@ export const subscriptionService = {
     return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
   },
 };
-
 
 export { addonService, subscriptionAddonService } from './addon.service';
