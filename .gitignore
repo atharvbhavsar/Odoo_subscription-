@@ -8,3 +8,19 @@ dist/
 *.sqlite-journal
 coverage/
 
+# Prompts, AI agent specs, and private documentation
+AGENT.md
+agent.md
+CLAUDE.md
+claude.md
+read.md
+*read.md*
+docs/read.md
+*.pdf
+Subscription_Management_System.pdf
+docs/Subscription_Management_System.pdf
+.agents/
+.cursor/
+.jetro/
+.windsurfrules
+.mcp.json
