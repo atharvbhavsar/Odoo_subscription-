@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
 import {
+  RefreshCw,
   Package,
   Plus,
   Tag,
@@ -74,7 +75,19 @@ export const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+    const interval = setInterval(() => {
+      fetchProducts();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
+
+  // Debounced live search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,15 +245,26 @@ export const ProductsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-800">Products & Variants</h1>
           <p className="text-sm text-slate-500">Manage base catalogue items, costs, and pricing variations</p>
         </div>
-        {canManage && (
+        <div className="flex items-center space-x-2">
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => fetchProducts()}
+            disabled={loading}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-sm"
+            title="Refresh products in real time"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          {canManage && (
+            <button
+              onClick={() => setShowCreateModal(true)}
             className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>New Product</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* Messages */}

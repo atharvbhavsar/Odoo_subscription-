@@ -70,6 +70,11 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchSummary();
+    // Real-time polling every 15 seconds for live financial updates
+    const interval = setInterval(() => {
+      fetchSummary();
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleApplyPreset = (p: string) => {
@@ -158,6 +163,15 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => fetchSummary()}
+            disabled={loading}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition shadow-sm"
+            title="Refresh dashboard metrics in real time"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
           <button
             onClick={() => setShowDefinitions(!showDefinitions)}
             className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-medium text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition"

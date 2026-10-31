@@ -1,3 +1,7 @@
+import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { validateRequest } from '../../middleware/validate.middleware';
+import { PricingService, PricingLineInput } from '../discounts/pricing.service';
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
 import { requireAuth } from '../../middleware/auth.middleware';
@@ -81,6 +85,156 @@ subscriptionsRouter.get('/', requireAuth, async (req: Request, res: Response) =>
   const subs = await db.query(sql, params);
   res.json({ data: subs, message: 'Subscriptions retrieved successfully' });
 });
+
+const createSubscriptionSchema = z.object({
+  customer_id: z.string().min(1, 'Customer is required'),
+  plan_id: z.string().min(1, 'Plan is required'),
+  start_date: z.string().optional(),
+  discount_id: z.string().optional().nullable(),
+  tax_id: z.string().optional().nullable(),
+  lines: z
+    .array(
+      z.object({
+        product_id: z.string().min(1),
+        variant_id: z.string().optional().nullable(),
+        quantity: z.number().int().min(1).default(1),
+      })
+    )
+    .optional(),
+});
+
+// Create new Subscription directly (Admin / Staff)
+subscriptionsRouter.post(
+  '/',
+  requireAuth,
+  requireRole(['admin', 'staff']),
+  validateRequest(createSubscriptionSchema),
+  async (req: Request, res: Response) => {
+    const { customer_id, plan_id, start_date, discount_id, tax_id, lines: customLines } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+    const startDate = start_date || today;
+
+    // Verify Customer
+    const customer = await db.queryOne('SELECT id, name FROM customer_profiles WHERE id = ?', [customer_id]);
+    if (!customer) {
+      return res.status(404).json({ error: { code: 'CUSTOMER_NOT_FOUND', message: 'Selected customer not found' } });
+    }
+
+    // Verify Plan
+    const plan = await db.queryOne<{
+      id: string;
+      name: string;
+      billing_frequency: string;
+      billing_interval: number;
+      price: number;
+      is_active: number;
+    }>('SELECT * FROM plans WHERE id = ?', [plan_id]);
+
+    if (!plan) {
+      return res.status(404).json({ error: { code: 'PLAN_NOT_FOUND', message: 'Selected subscription plan not found' } });
+    }
+
+    if (plan.is_active === 0) {
+      return res.status(400).json({ error: { code: 'PLAN_INACTIVE', message: 'Cannot create subscription for an inactive plan' } });
+    }
+
+    // Determine line inputs
+    let lineInputs: PricingLineInput[] = [];
+    if (customLines && customLines.length > 0) {
+      lineInputs = customLines.map((l: any) => ({
+        productId: l.product_id,
+        variantId: l.variant_id || null,
+        quantity: l.quantity,
+      }));
+    } else {
+      // Load bundled lines from plan_lines
+      const planLines = await db.query<{ product_id: string; variant_id: string | null; quantity: number }>(
+        'SELECT product_id, variant_id, quantity FROM plan_lines WHERE plan_id = ?',
+        [plan_id]
+      );
+      if (planLines && planLines.length > 0) {
+        lineInputs = planLines.map((pl) => ({
+          productId: pl.product_id,
+          variantId: pl.variant_id,
+          quantity: pl.quantity,
+        }));
+      } else {
+        // Fallback: primary product
+        const defaultProduct = await db.queryOne<{ id: string }>('SELECT id FROM products WHERE is_active = 1 LIMIT 1');
+        if (defaultProduct) {
+          lineInputs = [{ productId: defaultProduct.id, quantity: 1 }];
+        }
+      }
+    }
+
+    if (lineInputs.length === 0) {
+      return res.status(400).json({ error: { code: 'NO_LINES', message: 'At least one product line is required' } });
+    }
+
+    // Authoritative pricing calculation
+    const pricing = await PricingService.calculatePricing(lineInputs, discount_id, tax_id, { evalDate: startDate });
+
+    const subscriptionId = uuidv4();
+    const subNumber = `SUB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const nextBillingDate = BillingService.advanceDate(startDate, plan.billing_frequency, plan.billing_interval || 1);
+    const endDate = BillingService.advanceDate(startDate, plan.billing_frequency, (plan.billing_interval || 1) * 12);
+
+    await db.transaction(async () => {
+      await db.execute(
+        `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, discount_id, tax_id, status, start_date, next_billing_date, end_date, billing_frequency, subtotal, discount_amount, tax_amount, total_amount, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          subscriptionId,
+          subNumber,
+          customer_id,
+          plan_id,
+          pricing.discountId || null,
+          pricing.taxId || null,
+          startDate,
+          nextBillingDate,
+          endDate,
+          plan.billing_frequency,
+          pricing.subtotal,
+          pricing.discountAmount,
+          pricing.taxAmount,
+          pricing.totalAmount,
+        ]
+      );
+
+      for (const line of pricing.lines) {
+        await db.execute(
+          `INSERT INTO subscription_lines (id, subscription_id, product_id, variant_id, quantity, unit_price, subtotal)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), subscriptionId, line.productId, line.variantId || null, line.quantity, line.unitPrice, line.subtotal]
+        );
+      }
+    });
+
+    await AuditService.log('SUBSCRIPTION_CREATED', 'subscriptions', subscriptionId, req.user?.id, {
+      subNumber,
+      customer_id,
+      plan_id,
+      totalAmount: pricing.totalAmount,
+    });
+
+    const createdSub = await db.queryOne<{ id: string }>(
+      `SELECT s.*, c.name as customer_name, c.company_name, u.email as customer_email,
+              p.name as plan_name, p.can_pause, p.can_renew, p.can_close_early, p.billing_interval
+       FROM subscriptions s
+       JOIN customer_profiles c ON s.customer_id = c.id
+       LEFT JOIN users u ON c.user_id = u.id
+       JOIN plans p ON s.plan_id = p.id
+       WHERE s.id = ?`,
+      [subscriptionId]
+    );
+
+    res.status(201).json({
+      data: createdSub,
+      message: 'Subscription created successfully',
+    });
+  }
+);
+
 
 // Subscription detail with lines, add-ons, plan policies, and recent invoices
 subscriptionsRouter.get('/:id', requireAuth, async (req: Request, res: Response) => {
