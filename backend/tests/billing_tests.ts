@@ -28,7 +28,7 @@ async function runBillingTests() {
   // 1. Single Billing Run & Invoicing
   console.log('[Billing Test 1] Standard Billing Run & Invoice Generation...');
   const sub1Id = uuidv4();
-  const sub1Num = `SUB-BILL-1-${Date.now().toString().slice(-4)}`;
+  const sub1Num = `SUB-BILL-1-${uuidv4().slice(0, 8)}`;
   const today = '2026-10-31';
 
   await db.execute(
@@ -63,7 +63,7 @@ async function runBillingTests() {
   // 3. Concurrent Runs Protection
   console.log('[Billing Test 3] Concurrent Billing Runs Conflict Handling...');
   const sub3Id = uuidv4();
-  const sub3Num = `SUB-CONCUR-${Date.now().toString().slice(-4)}`;
+  const sub3Num = `SUB-CONCUR-${uuidv4().slice(0, 8)}`;
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, total_amount)
      VALUES (?, ?, ?, 'plan-monthly-01', 'active', ?, ?, 'monthly', 200.00, 200.00)`,
@@ -87,7 +87,7 @@ async function runBillingTests() {
   // 4. Missed Periods Catch-Up Policy
   console.log('[Billing Test 4] Missed-Period Catch-Up Invoicing...');
   const sub4Id = uuidv4();
-  const sub4Num = `SUB-MISSED-${Date.now().toString().slice(-4)}`;
+  const sub4Num = `SUB-MISSED-${uuidv4().slice(0, 8)}`;
   // Backdated: 3 months ago (Aug 1, 2026)
   const missedStartDate = '2026-08-01';
   await db.execute(
@@ -110,7 +110,7 @@ async function runBillingTests() {
   // 5. Expiry Policy Enforcement
   console.log('[Billing Test 5] Subscription Expiry Policy...');
   const sub5Id = uuidv4();
-  const sub5Num = `SUB-EXP-${Date.now().toString().slice(-4)}`;
+  const sub5Num = `SUB-EXP-${uuidv4().slice(0, 8)}`;
   // Past end_date
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, end_date, billing_frequency, subtotal, total_amount)
@@ -128,7 +128,7 @@ async function runBillingTests() {
   // 6. Pause Policy Enforcement
   console.log('[Billing Test 6] Subscription Pause Policy...');
   const sub6Id = uuidv4();
-  const sub6Num = `SUB-PAUSED-${Date.now().toString().slice(-4)}`;
+  const sub6Num = `SUB-PAUSED-${uuidv4().slice(0, 8)}`;
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, total_amount)
      VALUES (?, ?, ?, 'plan-monthly-01', 'paused', '2026-10-01', '2026-10-31', 'monthly', 100.00, 100.00)`,
@@ -145,7 +145,7 @@ async function runBillingTests() {
   // 7. Discounts, Taxes, and Rounding Calculations
   console.log('[Billing Test 7] Decimal-Safe Taxes, Discounts & Rounding...');
   const sub7Id = uuidv4();
-  const sub7Num = `SUB-TAX-${Date.now().toString().slice(-4)}`;
+  const sub7Num = `SUB-TAX-${uuidv4().slice(0, 8)}`;
   // Subtotal: 1000.00, Discount 10% = 100.00, Tax 18% of 900 = 162.00, Total = 1062.00
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, discount_amount, tax_amount, total_amount)
@@ -172,7 +172,7 @@ async function runBillingTests() {
   // 8. Transaction Rollback Verification
   console.log('[Billing Test 8] Transaction Rollback on Failure...');
   const sub8Id = uuidv4();
-  const sub8Num = `SUB-ROLLBACK-${Date.now().toString().slice(-4)}`;
+  const sub8Num = `SUB-ROLLBACK-${uuidv4().slice(0, 8)}`;
   const initialDate = '2026-10-31';
 
   await db.execute(
@@ -218,7 +218,7 @@ async function runBillingTests() {
   // 10. Billing with Active, Pending Activation, and Removed Subscription Add-ons
   console.log('[Billing Test 10] Billing with Subscription Add-ons (Active billed, Future & Removed excluded)...');
   const sub10Id = uuidv4();
-  const sub10Num = `SUB-ADDON-${Date.now().toString().slice(-4)}`;
+  const sub10Num = `SUB-ADDON-${uuidv4().slice(0, 8)}`;
   const addonBillingDate = '2026-10-31';
 
   await db.execute(

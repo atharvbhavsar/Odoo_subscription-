@@ -137,7 +137,7 @@ export class SubscriptionAddonService {
     // Variant validation
     let priceExtra = 0;
     if (data.variantId) {
-      const variant = await db.queryOne<{ id: string; product_id: string; price_extra: number }>(
+      const variant = await db.queryOne<{ id: string; product_id: string; price_extra: number; is_active: number }>(
         'SELECT id, product_id, price_extra, is_active FROM product_variants WHERE id = ? AND product_id = ?',
         [data.variantId, data.productId]
       );
