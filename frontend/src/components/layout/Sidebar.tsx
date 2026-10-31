@@ -1,0 +1,61 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import {
+  LayoutDashboard,
+  Package,
+  Layers,
+  FileText,
+  Repeat,
+  Receipt,
+  User,
+} from 'lucide-react';
+
+export const Sidebar: React.FC = () => {
+  const { user } = useAuth();
+  const isCustomer = user?.role === 'customer';
+
+  const staffNavItems = [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/products', label: 'Products & Variants', icon: Package },
+    { to: '/plans', label: 'Subscription Plans', icon: Layers },
+    { to: '/quotations', label: 'Quotations', icon: FileText },
+    { to: '/subscriptions', label: 'Subscriptions', icon: Repeat },
+    { to: '/invoices', label: 'Invoices & Billing', icon: Receipt },
+  ];
+
+  const customerNavItems = [
+    { to: '/portal', label: 'Customer Portal', icon: User },
+    { to: '/invoices', label: 'My Invoices', icon: Receipt },
+    { to: '/subscriptions', label: 'My Subscriptions', icon: Repeat },
+  ];
+
+  const items = isCustomer ? customerNavItems : staffNavItems;
+
+  return (
+    <aside className="w-64 bg-slate-900 text-slate-300 min-h-[calc(100vh-4rem)] flex flex-col p-4">
+      <nav className="space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`
+              }
+            >
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              <span>{item.label}</span>
+            </NavLink>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+};
+
