@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+import { PricingService, PricingLineInput } from '../discounts/pricing.service';
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
 import { requireAuth } from '../../middleware/auth.middleware';
@@ -364,4 +366,200 @@ subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Re
   await AuditService.log('SUBSCRIPTION_CLOSED', 'subscriptions', sub.id, req.user?.id, { closedAt: today });
 
   res.json({ data: { id: sub.id, status: 'closed', end_date: today }, message: 'Subscription closed' });
+});
+
+
+// Customer Self-Service & Admin: Buy a subscription directly
+// Atomically creates confirmed quotation snapshot, activates subscription, and generates initial invoice
+subscriptionsRouter.post('/subscribe', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const isCustomer = req.user?.role === 'customer';
+
+    // 1. Resolve Customer ID
+    let customerId = isCustomer ? req.user?.customerId : (req.body.customer_id || req.user?.customerId);
+    if (!customerId && req.user?.id) {
+      const profile = await db.queryOne<{ id: string }>('SELECT id FROM customer_profiles WHERE user_id = ?', [req.user.id]);
+      if (profile) {
+        customerId = profile.id;
+      } else {
+        customerId = 'cust-' + Date.now().toString().slice(-6);
+        await db.execute(
+          'INSERT INTO customer_profiles (id, user_id, name, company_name) VALUES (?, ?, ?, ?)',
+          [customerId, req.user.id, req.user.name || req.user.email.split('@')[0], req.user.name || 'Customer Account']
+        );
+      }
+    }
+
+    if (!customerId) {
+      return res.status(400).json({ error: { code: 'CUSTOMER_PROFILE_NOT_FOUND', message: 'No customer profile found for this account' } });
+    }
+
+    const { plan_id, discount_code } = req.body;
+    if (!plan_id) {
+      return res.status(400).json({ error: { code: 'PLAN_REQUIRED', message: 'A valid plan_id is required' } });
+    }
+
+    // 2. Validate selected Plan
+    const plan = await db.queryOne<{
+      id: string;
+      name: string;
+      billing_frequency: string;
+      billing_interval: number;
+      price: number;
+      is_active: number;
+    }>('SELECT * FROM plans WHERE id = ?', [plan_id]);
+
+    if (!plan || !plan.is_active) {
+      return res.status(400).json({ error: { code: 'INVALID_PLAN', message: 'Selected plan is not available or is currently inactive' } });
+    }
+
+    // 3. Resolve bundled plan lines
+    const planLines = await db.query<{ product_id: string; variant_id: string | null; quantity: number }>(
+      'SELECT product_id, variant_id, quantity FROM plan_lines WHERE plan_id = ?',
+      [plan_id]
+    );
+
+    let lineInputs: PricingLineInput[] = [];
+    if (planLines && planLines.length > 0) {
+      lineInputs = planLines.map(pl => ({
+        productId: pl.product_id,
+        variantId: pl.variant_id,
+        quantity: pl.quantity || 1,
+      }));
+    } else {
+      const defaultProduct = await db.queryOne<{ id: string }>('SELECT id FROM products WHERE is_active = 1 LIMIT 1');
+      if (defaultProduct) {
+        lineInputs = [{ productId: defaultProduct.id, quantity: 1, unitPrice: plan.price }];
+      } else {
+        return res.status(400).json({ error: { code: 'NO_PRODUCTS', message: 'No active products found to bundle with this plan' } });
+      }
+    }
+
+    // 4. Resolve optional discount code
+    let discountId: string | null = null;
+    if (discount_code && typeof discount_code === 'string' && discount_code.trim()) {
+      const discount = await db.queryOne<{ id: string; is_active: number; max_uses: number; used_count: number; start_date: string; end_date: string }>(
+        'SELECT * FROM discounts WHERE code = ? AND is_active = 1',
+        [discount_code.trim().toUpperCase()]
+      );
+      if (discount) {
+        if (discount.max_uses > 0 && discount.used_count >= discount.max_uses) {
+          return res.status(400).json({ error: { code: 'DISCOUNT_MAX_USES_REACHED', message: 'Discount code has reached its maximum usage limit' } });
+        }
+        if (discount.start_date && discount.start_date > today) {
+          return res.status(400).json({ error: { code: 'DISCOUNT_NOT_ACTIVE', message: 'Discount code is not yet valid' } });
+        }
+        if (discount.end_date && discount.end_date < today) {
+          return res.status(400).json({ error: { code: 'DISCOUNT_EXPIRED', message: 'Discount code has expired' } });
+        }
+        discountId = discount.id;
+      } else {
+        return res.status(400).json({ error: { code: 'INVALID_DISCOUNT', message: 'Provided discount code was not found or is inactive' } });
+      }
+    }
+
+    // 5. Resolve active tax
+    const defaultTax = await db.queryOne<{ id: string }>('SELECT id FROM taxes WHERE is_active = 1 LIMIT 1');
+    const taxId = defaultTax ? defaultTax.id : null;
+
+    // 6. Calculate authoritative pricing
+    const pricing = await PricingService.calculatePricing(lineInputs, discountId, taxId, { evalDate: today });
+
+    const subscriptionId = uuidv4();
+    const subNumber = `SUB-${Date.now().toString().slice(-6)}`;
+    const quoteId = uuidv4();
+    const quoteNumber = `QT-${Date.now().toString().slice(-6)}`;
+    const invoiceId = uuidv4();
+    const invNumber = `INV-${today.replace(/-/g, '')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    const periodStart = today;
+    const periodEnd = BillingService.advanceDate(today, plan.billing_frequency, plan.billing_interval || 1);
+
+    // 7. Atomic transaction for quotation, subscription, lines, and invoice
+    await db.transaction(async () => {
+      // Create confirmed quotation record for full financial tracking
+      await db.execute(
+        `INSERT INTO quotations (id, quotation_number, customer_id, plan_id, discount_id, tax_id, status, valid_until, subtotal, discount_amount, tax_amount, total_amount, subscription_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          quoteId, quoteNumber, customerId, plan_id, discountId, taxId, periodEnd,
+          pricing.subtotal, pricing.discountAmount, pricing.taxAmount, pricing.totalAmount, subscriptionId
+        ]
+      );
+
+      for (const line of pricing.lines) {
+        await db.execute(
+          `INSERT INTO quotation_lines (id, quotation_id, product_id, variant_id, quantity, unit_price, subtotal)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), quoteId, line.productId, line.variantId || null, line.quantity, line.unitPrice, line.subtotal]
+        );
+      }
+
+      // Create Active Subscription
+      await db.execute(
+        `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, discount_id, tax_id, status, start_date, next_billing_date, billing_frequency, subtotal, discount_amount, tax_amount, total_amount, quotation_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          subscriptionId, subNumber, customerId, plan_id, discountId, taxId,
+          today, periodEnd, plan.billing_frequency,
+          pricing.subtotal, pricing.discountAmount, pricing.taxAmount, pricing.totalAmount, quoteId
+        ]
+      );
+
+      for (const line of pricing.lines) {
+        await db.execute(
+          `INSERT INTO subscription_lines (id, subscription_id, product_id, variant_id, quantity, unit_price, subtotal)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), subscriptionId, line.productId, line.variantId || null, line.quantity, line.unitPrice, line.subtotal]
+        );
+      }
+
+      // Create Initial Period Invoice for immediate settlement
+      await db.execute(
+        `INSERT INTO invoices (id, invoice_number, customer_id, subscription_id, period_start, period_end, due_date, status, subtotal, discount_amount, tax_amount, total_amount, amount_paid, amount_due, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 0.00, ?, CURRENT_TIMESTAMP)`,
+        [
+          invoiceId, invNumber, customerId, subscriptionId, periodStart, periodEnd, today,
+          pricing.subtotal, pricing.discountAmount, pricing.taxAmount, pricing.totalAmount, pricing.totalAmount
+        ]
+      );
+
+      for (const line of pricing.lines) {
+        await db.execute(
+          `INSERT INTO invoice_lines (id, invoice_id, product_id, variant_id, description, quantity, unit_price, subtotal)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), invoiceId, line.productId, line.variantId || null, line.description || plan.name, line.quantity, line.unitPrice, line.subtotal]
+        );
+      }
+
+      if (discountId) {
+        await db.execute('UPDATE discounts SET used_count = used_count + 1 WHERE id = ?', [discountId]);
+      }
+    });
+
+    await AuditService.log('CUSTOMER_SUBSCRIPTION_PURCHASED', 'subscriptions', subscriptionId, req.user?.id, {
+      subNumber,
+      planName: plan.name,
+      totalAmount: pricing.totalAmount,
+      invoiceId,
+      customerId
+    });
+
+    res.status(201).json({
+      data: {
+        subscription_id: subscriptionId,
+        subscription_number: subNumber,
+        invoice_id: invoiceId,
+        invoice_number: invNumber,
+        plan_name: plan.name,
+        total_amount: pricing.totalAmount,
+        status: 'active'
+      },
+      message: `Successfully subscribed to ${plan.name}! Initial invoice ${invNumber} generated.`
+    });
+  } catch (err: any) {
+    console.error('Error during customer self-service subscription purchase:', err);
+    res.status(500).json({ error: { code: 'SUBSCRIBE_FAILED', message: err.message || 'Failed to complete subscription purchase' } });
+  }
 });

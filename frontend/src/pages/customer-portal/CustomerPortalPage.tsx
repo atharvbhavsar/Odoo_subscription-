@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { subscriptionService, quotationService } from '../../services/quotation.service';
+import { catalogService } from '../../services/product.service';
 import { invoiceService } from '../../services/invoice.service';
 import { paymentService } from '../../services/payment.service';
 import { Subscription, Quotation, Invoice } from '../../types';
@@ -28,6 +29,9 @@ import {
   DollarSign,
   AlertCircle,
   CheckCircle2,
+  Sparkles,
+  Plus,
+  Check,
 } from 'lucide-react';
 
 export const CustomerPortalPage: React.FC = () => {
@@ -49,12 +53,63 @@ export const CustomerPortalPage: React.FC = () => {
   const [subDetailsLoading, setSubDetailsLoading] = useState(false);
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<Quotation | null>(null);
   const [quoteDetailsLoading, setQuoteDetailsLoading] = useState(false);
+  const [isSubscribeModalOpen, setIsSubscribeModalOpen] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
 
   // Confirmation dialog state
   const [confirmModal, setConfirmModal] = useState<{
     action: 'pause' | 'resume' | 'renew' | 'close';
     subscription: Subscription;
   } | null>(null);
+
+  const handleOpenSubscribeModal = async () => {
+    setIsSubscribeModalOpen(true);
+    try {
+      setLoadingPlans(true);
+      const plansData = await catalogService.getPlans();
+      const active = (plansData || []).filter((p: any) => p.is_active === 1 || p.is_active === true);
+      setAvailablePlans(active);
+      if (active.length > 0) {
+        setSelectedPlanId(active[0].id);
+      }
+    } catch (err: any) {
+      console.error('Failed to load plans:', err);
+      setAlertMsg({ type: 'error', text: 'Failed to load available plans.' });
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
+  const handleConfirmSubscribe = async () => {
+    if (!selectedPlanId) return;
+    try {
+      setSubscribing(true);
+      const res = await subscriptionService.subscribe({
+        plan_id: selectedPlanId,
+        discount_code: discountCode.trim() || undefined,
+      });
+      setAlertMsg({
+        type: 'success',
+        text: (res as any).message || 'Subscription activated successfully! Initial invoice generated.',
+      });
+      setIsSubscribeModalOpen(false);
+      setDiscountCode('');
+      await loadCustomerData();
+      setActiveTab('subscriptions');
+    } catch (err: any) {
+      console.error('Subscription purchase failed:', err);
+      setAlertMsg({
+        type: 'error',
+        text: err.message || 'Failed to complete subscription purchase.',
+      });
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   const loadCustomerData = async () => {
     try {
@@ -1250,6 +1305,140 @@ export const CustomerPortalPage: React.FC = () => {
                 {actionLoading ? 'Processing...' : `Confirm ${confirmModal.action}`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Choose Subscription Plan Modal */}
+      {isSubscribeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-slate-900">Choose a Subscription Plan</h3>
+                  <p className="text-xs text-slate-500">Select a tier to activate recurring software access</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSubscribeModalOpen(false)}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {loadingPlans ? (
+              <div className="py-12">
+                <LoadingSpinner message="Loading available subscription plans..." />
+              </div>
+            ) : availablePlans.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-sm">
+                No active plans currently available. Please contact sales or staff.
+              </div>
+            ) : (
+              <div className="space-y-6 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {availablePlans.map((plan: any) => {
+                    const isSelected = selectedPlanId === plan.id;
+                    return (
+                      <div
+                        key={plan.id}
+                        onClick={() => setSelectedPlanId(plan.id)}
+                        className={`p-5 rounded-2xl border-2 cursor-pointer transition relative flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/40 shadow-md shadow-indigo-100'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-3 right-3 w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                            {plan.billing_frequency}
+                          </span>
+                          <h4 className="text-base font-bold text-slate-900 mt-2">{plan.name}</h4>
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                            {plan.description || 'Standard subscription access'}
+                          </p>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-baseline justify-between">
+                          <div>
+                            <span className="text-2xl font-extrabold text-slate-900">
+                              ${Number(plan.price || 0).toFixed(2)}
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium ml-1">
+                              / {plan.billing_frequency}
+                            </span>
+                          </div>
+                          {plan.lines && plan.lines.length > 0 && (
+                            <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                              {plan.lines.length} bundled item{plan.lines.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Optional Discount Code */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Have a promo / discount code? (Optional)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. EARLY10 or FLAT50"
+                      value={discountCode}
+                      onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                      className="w-full text-xs font-mono uppercase bg-white border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Valid codes: <span className="font-mono text-indigo-600">EARLY10</span> (10% off) or{' '}
+                    <span className="font-mono text-indigo-600">FLAT50</span> ($50 off).
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSubscribeModalOpen(false)}
+                    disabled={subscribing}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSubscribe}
+                    disabled={subscribing || !selectedPlanId}
+                    className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition disabled:opacity-50"
+                  >
+                    {subscribing ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Activating Subscription...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                        <span>Confirm & Subscribe</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

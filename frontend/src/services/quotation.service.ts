@@ -138,6 +138,21 @@ export const subscriptionService = {
   async close(id: string) {
     return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
   },
+
+  async subscribe(data: { plan_id: string; discount_code?: string }) {
+    return apiRequest<{
+      subscription_id: string;
+      subscription_number: string;
+      invoice_id: string;
+      invoice_number: string;
+      plan_name: string;
+      total_amount: number;
+      status: string;
+    }>('/subscriptions/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 export { addonService, subscriptionAddonService } from './addon.service';
