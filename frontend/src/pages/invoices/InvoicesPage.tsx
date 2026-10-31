@@ -107,6 +107,49 @@ export const InvoicesPage: React.FC = () => {
     setPaymentSuccessMsg(null);
     try {
       const order = await paymentService.createRazorpayOrder(inv.id);
+
+      if (typeof (window as any).Razorpay !== 'undefined') {
+        const rzp = new (window as any).Razorpay({
+          key: order.keyId,
+          amount: order.amountInPaise,
+          currency: order.currency || 'USD',
+          name: 'Brightloop Subscription Manager',
+          description: `Settlement for Invoice #${inv.invoice_number}`,
+          order_id: order.orderId,
+          handler: async (response: any) => {
+            try {
+              const result = await paymentService.verifyPayment({
+                invoice_id: inv.id,
+                gateway_order_id: response.razorpay_order_id || order.orderId,
+                gateway_payment_id: response.razorpay_payment_id,
+                gateway_signature: response.razorpay_signature,
+              });
+              setPaymentSuccessMsg(
+                `Payment of $${order.amount.toFixed(2)} verified! Invoice status: ${result.invoice_status.toUpperCase()}.`
+              );
+              fetchInvoices();
+            } catch (err: any) {
+              alert(err.message || 'Payment verification failed');
+            }
+          },
+          prefill: {
+            name: inv.customer_name,
+          },
+          theme: {
+            color: '#4f46e5',
+          },
+          modal: {
+            ondismiss: () => {
+              setActionLoading(false);
+            },
+          },
+        });
+        rzp.open();
+        setActionLoading(false);
+        return;
+      }
+
+      // Offline/mock fallback if Razorpay CDN is not reachable
       const mockPaymentId = `pay_rzp_mock_${Date.now()}`;
       const mockSignature = `mock_sig_${Date.now()}`;
 

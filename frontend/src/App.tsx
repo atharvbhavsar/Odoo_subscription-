@@ -49,6 +49,7 @@ export const App: React.FC = () => {
             <Route path="/payments" element={<PaymentsHistoryPage />} />
             <Route path="/portal" element={<CustomerPortalPage />} />
             <Route path="/billing-run" element={<BillingRunPage />} />
+            <Route path="/billing/run" element={<BillingRunPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
