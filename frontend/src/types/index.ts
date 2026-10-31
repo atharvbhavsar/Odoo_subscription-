@@ -194,6 +194,11 @@ export interface DashboardSummary {
   overdueAmount: number;
   recentInvoices: any[];
   recentPayments: any[];
+  overdueAging?: Array<{ bucket: string; count: number; amount: number }>;
+  monthlyCashflow?: Array<{ month: string; invoiced: number; collected: number }>;
+  subscriptionsByStatus?: Array<{ status: string; count: number; totalValue: number }>;
+  subscriptionsByPlan?: Array<{ planName: string; count: number; totalValue: number }>;
+  filtersApplied?: { startDate?: string; endDate?: string };
 }
 
 

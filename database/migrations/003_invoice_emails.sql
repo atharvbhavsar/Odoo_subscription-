@@ -13,3 +13,4 @@ CREATE TABLE IF NOT EXISTS invoice_emails (
   error_message TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+

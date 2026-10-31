@@ -287,3 +287,4 @@ export class EmailService {
     return db.query('SELECT * FROM invoice_emails WHERE invoice_id = ? ORDER BY created_at DESC', [invoiceId]);
   }
 }
+

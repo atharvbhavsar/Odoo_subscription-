@@ -42,8 +42,16 @@ export const paymentService = {
 };
 
 export const dashboardService = {
-  async getSummary() {
-    return apiRequest<DashboardSummary>('/dashboard/summary');
+  async getSummary(params?: { startDate?: string; endDate?: string }) {
+    let query = '';
+    if (params) {
+      const q = new URLSearchParams();
+      if (params.startDate) q.append('startDate', params.startDate);
+      if (params.endDate) q.append('endDate', params.endDate);
+      const str = q.toString();
+      if (str) query = `?${str}`;
+    }
+    return apiRequest<DashboardSummary>(`/dashboard/summary${query}`);
   },
 
   async triggerBillingRun(targetDate?: string) {

@@ -187,3 +187,4 @@ runPdfEmailTests()
     console.error('PDF/Email test failed:', err);
     process.exit(1);
   });
+
