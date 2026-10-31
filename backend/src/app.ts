@@ -19,7 +19,9 @@ import { invoicesRouter } from './modules/invoices/invoices.routes';
 import { paymentsRouter } from './modules/payments/payments.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 
-export const app = express();
+const app = express();
+(app as any).app = app;
+(app as any).default = app;
 
 app.use(
   cors({
@@ -62,3 +64,5 @@ app.use('/api/dashboard', dashboardRouter);
 
 // Central error handler
 app.use(errorHandler);
+
+export = app;
