@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { catalogService } from '../../services/product.service';
 import { Plan, Product } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { subscriptionService } from '../../services/quotation.service';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
 import {
@@ -20,6 +22,10 @@ import {
   Trash2,
   Clock,
   ShieldCheck,
+  Sparkles,
+  CheckCircle2,
+  Tag,
+  RefreshCw,
 } from 'lucide-react';
 
 interface FormLine {
@@ -62,6 +68,34 @@ export const PlansPage: React.FC = () => {
     lines: [] as FormLine[],
   };
   const [formData, setFormData] = useState(initialFormState);
+  const navigate = useNavigate();
+  const [buyingPlan, setBuyingPlan] = useState<Plan | null>(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+
+  const handleBuySubscription = async () => {
+    if (!buyingPlan) return;
+    try {
+      setSubscribing(true);
+      setError(null);
+      const res = await subscriptionService.subscribe({
+        plan_id: buyingPlan.id,
+        discount_code: discountCode.trim() || undefined,
+      });
+      setPurchaseSuccess(
+        (res as any).message || `Successfully subscribed to ${buyingPlan.name}! Initial invoice generated.`
+      );
+      setBuyingPlan(null);
+      setDiscountCode('');
+      fetchPlans();
+    } catch (err: any) {
+      setError(err.message || 'Failed to complete subscription purchase');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
 
   const { user } = useAuth();
   const canManage = user?.role === 'admin' || user?.role === 'staff';
@@ -254,10 +288,12 @@ export const PlansPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center space-x-2">
             <Layers className="w-6 h-6 text-indigo-600" />
-            <span>Subscription Plans</span>
+            <span>{canManage ? 'Subscription Plans' : 'All Subscriptions & Plans'}</span>
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Configure recurring frequencies, minimum seats, bundled products, and customer lifecycle permissions
+            {canManage
+              ? 'Configure recurring frequencies, minimum seats, bundled products, and customer lifecycle permissions'
+              : 'Browse all available recurring subscription packages, inspect included products, and subscribe instantly'}
           </p>
         </div>
         {canManage && (
@@ -272,6 +308,29 @@ export const PlansPage: React.FC = () => {
       </div>
 
       {/* Error alert */}
+      {purchaseSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm flex items-center justify-between shadow-sm">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <span className="font-medium">{purchaseSuccess}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => navigate('/subscriptions')}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition"
+            >
+              View My Subscriptions
+            </button>
+            <button
+              onClick={() => setPurchaseSuccess(null)}
+              className="text-xs font-bold text-emerald-700 hover:underline px-1"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
@@ -456,7 +515,7 @@ export const PlansPage: React.FC = () => {
                     <span>Details</span>
                   </button>
 
-                  {canManage && (
+                                    {canManage ? (
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => openEditModal(plan)}
@@ -479,6 +538,23 @@ export const PlansPage: React.FC = () => {
                         <span>{isActive ? 'Deactivate' : 'Activate'}</span>
                       </button>
                     </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setBuyingPlan(plan);
+                        setDiscountCode('');
+                        setError(null);
+                      }}
+                      disabled={!isActive}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition shadow-sm ${
+                        isActive
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                      <span>{isActive ? 'Buy Subscription' : 'Unavailable'}</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -996,6 +1072,123 @@ export const PlansPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Buy Subscription Checkout Modal */}
+      {buyingPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Subscribe to Plan</h3>
+                  <p className="text-xs text-slate-500">Review plan summary and activate subscription</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBuyingPlan(null)}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              {/* Plan Box */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700">
+                    {buyingPlan.billing_frequency}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-slate-900">
+                      ${Number(buyingPlan.price).toFixed(2)}
+                    </span>
+                    <span className="text-xs text-slate-500 ml-1">/{buyingPlan.billing_frequency}</span>
+                  </div>
+                </div>
+                <h4 className="text-base font-bold text-slate-900 mt-2">{buyingPlan.name}</h4>
+                {buyingPlan.description && (
+                  <p className="text-xs text-slate-600 mt-1">{buyingPlan.description}</p>
+                )}
+
+                {buyingPlan.lines && buyingPlan.lines.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-200">
+                    <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5 flex items-center space-x-1">
+                      <Package className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Included Products & Quantities</span>
+                    </p>
+                    <div className="space-y-1">
+                      {buyingPlan.lines.map((line) => (
+                        <div key={line.id} className="flex justify-between text-xs text-slate-600">
+                          <span>{line.product_name} {line.attribute_value ? `(${line.attribute_value})` : ''}</span>
+                          <span className="font-semibold text-slate-900">Qty: {line.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Promo Code Input */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                  <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Promo / Discount Voucher (Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. EARLY10 or FLAT50"
+                  value={discountCode}
+                  onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                  className="w-full text-xs font-mono uppercase bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Tip: Use <span className="font-mono text-indigo-600">EARLY10</span> for 10% off or <span className="font-mono text-indigo-600">FLAT50</span> for $50 off.
+                </p>
+              </div>
+
+              {/* Policy notes */}
+              <div className="text-[11px] text-slate-500 space-y-1 px-1">
+                <p>&bull; Subscription activates immediately with automatic invoice generation.</p>
+                <p>&bull; Recurring billing runs every {buyingPlan.billing_interval || 1} {buyingPlan.billing_frequency}.</p>
+                <p>&bull; {buyingPlan.can_close_early ? 'You can pause or close your subscription anytime.' : 'Fixed-term subscription contract.'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={subscribing}
+                onClick={() => setBuyingPlan(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={subscribing}
+                onClick={handleBuySubscription}
+                className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition disabled:opacity-50"
+              >
+                {subscribing ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Activating Subscription...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                    <span>Confirm & Subscribe</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

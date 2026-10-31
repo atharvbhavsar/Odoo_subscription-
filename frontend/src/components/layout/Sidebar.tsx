@@ -37,8 +37,9 @@ export const Sidebar: React.FC = () => {
 
   const customerNavItems = [
     { to: '/portal', label: 'Customer Portal', icon: User },
-    { to: '/invoices', label: 'My Invoices', icon: Receipt },
+    { to: '/plans', label: 'All Subscriptions', icon: Layers },
     { to: '/subscriptions', label: 'My Subscriptions', icon: Repeat },
+    { to: '/invoices', label: 'My Invoices', icon: Receipt },
   ];
 
   const items = isCustomer ? customerNavItems : staffNavItems;

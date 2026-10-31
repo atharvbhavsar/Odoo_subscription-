@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { subscriptionService } from '../../services/quotation.service';
 import { Subscription, CustomerProfile, Plan } from '../../types';
 import { catalogService } from '../../services/product.service';
@@ -23,6 +24,7 @@ import {
   X,
   RefreshCw,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 
 export const SubscriptionsPage: React.FC = () => {
@@ -227,6 +229,15 @@ export const SubscriptionsPage: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
+          {isCustomer && (
+            <Link
+              to="/plans"
+              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+              <span>Explore & Buy Subscriptions</span>
+            </Link>
+          )}
           {!isCustomer && (
             <button
               onClick={handleOpenCreateModal}

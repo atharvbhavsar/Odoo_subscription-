@@ -32,6 +32,7 @@ import {
   Sparkles,
   Plus,
   Check,
+  Package,
 } from 'lucide-react';
 
 export const CustomerPortalPage: React.FC = () => {
@@ -45,7 +46,7 @@ export const CustomerPortalPage: React.FC = () => {
   const [alertMsg, setAlertMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'quotations' | 'invoices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'quotations' | 'invoices' | 'plans'>('overview');
 
   // Modals state
   const [selectedSubForAddons, setSelectedSubForAddons] = useState<Subscription | null>(null);
@@ -325,7 +326,17 @@ export const CustomerPortalPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3">
+            <button
+              onClick={() => {
+                setActiveTab('plans');
+                handleOpenSubscribeModal();
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+              <span>Explore & Buy Subscriptions</span>
+            </button>
             <button
               onClick={loadCustomerData}
               disabled={loading}
@@ -475,7 +486,122 @@ export const CustomerPortalPage: React.FC = () => {
             </span>
           )}
         </button>
+        <button
+          onClick={() => {
+            setActiveTab('plans');
+            handleOpenSubscribeModal();
+          }}
+          className={`pb-3 transition flex items-center space-x-2 ${
+            activeTab === 'plans'
+              ? 'border-b-2 border-indigo-600 text-indigo-600 font-bold'
+              : 'text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-indigo-500" />
+          <span>All Subscriptions (Buy)</span>
+        </button>
       </div>
+
+            {/* TAB CONTENT: ALL SUBSCRIPTIONS (BUY) */}
+      {activeTab === 'plans' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                  <Layers className="w-5 h-5 text-indigo-600" />
+                  <span>Available Subscription Packages</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Choose an active subscription plan, inspect included products and services, and subscribe instantly.
+                </p>
+              </div>
+              <button
+                onClick={handleOpenSubscribeModal}
+                className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-200" />
+                <span>Choose & Subscribe</span>
+              </button>
+            </div>
+
+            {loadingPlans ? (
+              <div className="py-12">
+                <LoadingSpinner message="Loading subscription plans..." />
+              </div>
+            ) : availablePlans.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">
+                No active plans currently available. Please contact support.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+                {availablePlans.map((plan: any) => (
+                  <div
+                    key={plan.id}
+                    className="p-6 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-lg transition bg-white flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                          {plan.billing_frequency}
+                        </span>
+                        <span className="text-xs font-medium text-slate-400">
+                          Interval: {plan.billing_interval || 1}
+                        </span>
+                      </div>
+                      <h4 className="text-lg font-bold text-slate-900 mt-2">{plan.name}</h4>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                        {plan.description || 'Enterprise recurring subscription access'}
+                      </p>
+
+                      <div className="mt-4 flex items-baseline">
+                        <span className="text-3xl font-extrabold text-slate-900">
+                          ${Number(plan.price || 0).toFixed(2)}
+                        </span>
+                        <span className="text-xs text-slate-500 ml-1 font-medium">/{plan.billing_frequency}</span>
+                      </div>
+
+                      {plan.lines && plan.lines.length > 0 && (
+                        <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                          <p className="font-semibold text-slate-700 mb-1 flex items-center space-x-1">
+                            <Package className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Included Products ({plan.lines.length})</span>
+                          </p>
+                          <div className="space-y-1">
+                            {plan.lines.slice(0, 3).map((l: any) => (
+                              <div key={l.id} className="flex justify-between text-slate-600">
+                                <span className="truncate max-w-[160px]">{l.product_name}</span>
+                                <span className="font-medium text-slate-800">x{l.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center space-x-1">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Instant Activation</span>
+                      </span>
+                      <button
+                        onClick={() => {
+                          setSelectedPlanId(plan.id);
+                          setIsSubscribeModalOpen(true);
+                        }}
+                        className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-100 transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                        <span>Buy Plan</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: OVERVIEW */}
       {activeTab === 'overview' && (
