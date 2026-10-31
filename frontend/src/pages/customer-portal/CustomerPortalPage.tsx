@@ -180,7 +180,7 @@ export const CustomerPortalPage: React.FC = () => {
                 gateway_payment_id: response.razorpay_payment_id,
                 gateway_signature: response.razorpay_signature,
               });
-              setPaymentMsg(`Payment of $${order.amount.toFixed(2)} verified successfully!`);
+              setAlertMsg({ type: 'success', text: `Payment of $${order.amount.toFixed(2)} verified successfully!` });
               loadCustomerData();
             } catch (err: any) {
               alert(err.message || 'Payment verification failed');
