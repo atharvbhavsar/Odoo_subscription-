@@ -1,175 +1,178 @@
 # Database Schema Specification
 
-Target Database: Supabase PostgreSQL (Supports SQL transactions, constraints, and numeric precision)
+**Target Database:** Supabase PostgreSQL (Production) / SQLite Driver (Testing & Local Development)  
+**Migration Strategy:** Sequential versioned `.sql` files in `database/migrations/`  
+**Monetary Standard:** `NUMERIC(12, 2)` (PostgreSQL) / `REAL` (SQLite with explicit half-up two-decimal rounding)
 
-## Tables & Constraints
+---
 
-### 1. `users`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `email` VARCHAR(255) UNIQUE NOT NULL
-- `password_hash` VARCHAR(255) NOT NULL
-- `role` VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'staff', 'customer'))
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
-- `updated_at` TIMESTAMPTZ DEFAULT NOW()
+## 1. Relational Entity Diagram
 
-### 2. `customer_profiles`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `user_id` UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE
-- `name` VARCHAR(255) NOT NULL
-- `company_name` VARCHAR(255)
-- `phone` VARCHAR(50)
-- `address` TEXT
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+```text
+users ──< customer_profiles ──< quotations ──< quotation_lines
+  │                                  │
+  ├──< password_reset_tokens         └──> subscriptions ──< subscription_lines
+  │                                            │
+  └──< audit_logs                              └──> invoices ──< invoice_lines
+                                                       │
+                                                       └──< payments
+```
 
-### 3. `products`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `name` VARCHAR(255) NOT NULL
-- `type` VARCHAR(50) DEFAULT 'service'
-- `sales_price` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `cost_price` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `is_active` BOOLEAN DEFAULT TRUE
-- `notes` TEXT
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+---
 
-### 4. `product_variants`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `product_id` UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE
-- `attribute_name` VARCHAR(100) NOT NULL
-- `attribute_value` VARCHAR(100) NOT NULL
-- `price_extra` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+## 2. Table Definitions & Constraints
 
-### 5. `plans`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `name` VARCHAR(255) NOT NULL
-- `billing_frequency` VARCHAR(20) NOT NULL CHECK (billing_frequency IN ('daily', 'weekly', 'monthly', 'yearly'))
-- `price` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `min_qty` INTEGER NOT NULL DEFAULT 1
-- `is_active` BOOLEAN DEFAULT TRUE
-- `can_pause` BOOLEAN DEFAULT TRUE
-- `can_renew` BOOLEAN DEFAULT TRUE
-- `can_close_early` BOOLEAN DEFAULT TRUE
-- `auto_close` BOOLEAN DEFAULT FALSE
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.1 `users`
+Core user identity and authentication credentials.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Unique user identifier |
+| `email` | `TEXT` / `VARCHAR(255)` | `UNIQUE NOT NULL` | Login email address |
+| `password_hash` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Bcrypt password hash (cost factor 10) |
+| `role` | `TEXT` / `VARCHAR(20)` | `NOT NULL CHECK (role IN ('admin', 'staff', 'customer'))` | User permission role |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Account creation timestamp |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last profile update timestamp |
 
-### 6. `taxes`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `name` VARCHAR(100) NOT NULL
-- `rate_percentage` NUMERIC(5, 2) NOT NULL DEFAULT 0.00
-- `is_active` BOOLEAN DEFAULT TRUE
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.2 `customer_profiles`
+Customer organization details linked 1:1 with customer users.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Customer profile identifier |
+| `user_id` | `TEXT` / `UUID` | `UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE` | Link to user account |
+| `name` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Primary customer contact name |
+| `company_name` | `TEXT` / `VARCHAR(255)` | `NULLABLE` | Business organization name |
+| `phone` | `TEXT` / `VARCHAR(50)` | `NULLABLE` | Contact phone number |
+| `address` | `TEXT` | `NULLABLE` | Billing address |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Profile creation timestamp |
 
-### 7. `discounts`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `code` VARCHAR(50) UNIQUE NOT NULL
-- `type` VARCHAR(20) NOT NULL CHECK (type IN ('fixed', 'percentage'))
-- `value` NUMERIC(12, 2) NOT NULL
-- `min_purchase_amount` NUMERIC(12, 2) DEFAULT 0.00
-- `min_quantity` INTEGER DEFAULT 0
-- `start_date` DATE
-- `end_date` DATE
-- `max_uses` INTEGER DEFAULT 0
-- `used_count` INTEGER DEFAULT 0
-- `is_active` BOOLEAN DEFAULT TRUE
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.3 `password_reset_tokens`
+Time-limited, single-use password reset tokens storing SHA-256 hashes only.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Token record identifier |
+| `user_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES users(id) ON DELETE CASCADE` | Associated user |
+| `token_hash` | `TEXT` | `UNIQUE NOT NULL` | SHA-256 hash of random token (raw token is never stored) |
+| `expires_at` | `TIMESTAMP` | `NOT NULL` | 1-hour expiration timestamp |
+| `used_at` | `TIMESTAMP` | `NULLABLE` | Timestamp when token was consumed (enforces single-use) |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Token generation timestamp |
 
-### 8. `quotations`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `quotation_number` VARCHAR(50) UNIQUE NOT NULL
-- `customer_id` UUID NOT NULL REFERENCES customer_profiles(id)
-- `plan_id` UUID NOT NULL REFERENCES plans(id)
-- `discount_id` UUID REFERENCES discounts(id)
-- `tax_id` UUID REFERENCES taxes(id)
-- `status` VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'quotation', 'confirmed', 'cancelled')) DEFAULT 'draft'
-- `valid_until` DATE NOT NULL
-- `subtotal` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `discount_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `tax_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `total_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.4 `products`
+Base software and add-on catalogue items.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Product identifier |
+| `name` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Product name (e.g. Brightloop ERP) |
+| `type` | `TEXT` / `VARCHAR(50)` | `DEFAULT 'service'` | Product type |
+| `sales_price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Authoritative sales price |
+| `cost_price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Internal cost price |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active catalogue status |
+| `notes` | `TEXT` | `NULLABLE` | Description and sales notes |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
-### 9. `quotation_lines`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `quotation_id` UUID NOT NULL REFERENCES quotations(id) ON DELETE CASCADE
-- `product_id` UUID NOT NULL REFERENCES products(id)
-- `variant_id` UUID REFERENCES product_variants(id)
-- `quantity` INTEGER NOT NULL DEFAULT 1
-- `unit_price` NUMERIC(12, 2) NOT NULL
-- `subtotal` NUMERIC(12, 2) NOT NULL
+### 2.5 `product_variants`
+Pricing variations for products (e.g. Odoo brand edition).
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Variant identifier |
+| `product_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES products(id) ON DELETE CASCADE` | Parent product |
+| `attribute_name` | `TEXT` / `VARCHAR(100)` | `NOT NULL` | Attribute name (e.g. 'Brand') |
+| `attribute_value` | `TEXT` / `VARCHAR(100)` | `NOT NULL` | Attribute value (e.g. 'Odoo Brand Edition') |
+| `price_extra` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Additional fee added to base price (+560.00) |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
-### 10. `subscriptions`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `subscription_number` VARCHAR(50) UNIQUE NOT NULL
-- `customer_id` UUID NOT NULL REFERENCES customer_profiles(id)
-- `plan_id` UUID NOT NULL REFERENCES plans(id)
-- `discount_id` UUID REFERENCES discounts(id)
-- `tax_id` UUID REFERENCES taxes(id)
-- `status` VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'quotation', 'confirmed', 'active', 'paused', 'closed', 'expired')) DEFAULT 'confirmed'
-- `start_date` DATE NOT NULL
-- `end_date` DATE
-- `next_billing_date` DATE NOT NULL
-- `billing_frequency` VARCHAR(20) NOT NULL
-- `subtotal` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `discount_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `tax_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `total_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.6 `plans`
+Recurring billing cadences and lifecycle permissions.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Plan identifier |
+| `name` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Plan name (e.g. Professional Monthly) |
+| `billing_frequency`| `TEXT` | `CHECK (billing_frequency IN ('daily', 'weekly', 'monthly', 'yearly'))` | Cadence |
+| `price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Base plan subscription fee |
+| `min_qty` | `INTEGER` | `NOT NULL DEFAULT 1` | Minimum seat/license requirement |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active plan status |
+| `can_pause` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Whether customer can pause contract |
+| `can_renew` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Whether plan auto-renews |
+| `can_close_early` | `INTEGER` / `BOOLEAN`| `DEFAULT 1` | Whether customer can close early |
+| `auto_close` | `INTEGER` / `BOOLEAN` | `DEFAULT 0` | Auto-closes on period end if true |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
-### 11. `subscription_lines`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `subscription_id` UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE
-- `product_id` UUID NOT NULL REFERENCES products(id)
-- `variant_id` UUID REFERENCES product_variants(id)
-- `quantity` INTEGER NOT NULL DEFAULT 1
-- `unit_price` NUMERIC(12, 2) NOT NULL
-- `subtotal` NUMERIC(12, 2) NOT NULL
+### 2.7 `taxes`
+Configurable tax rules applied to invoices.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Tax identifier |
+| `name` | `TEXT` / `VARCHAR(100)` | `NOT NULL` | Tax label (e.g. GST 18%) |
+| `rate_percentage`| `NUMERIC(5, 2)` | `NOT NULL DEFAULT 0.00` | Percentage rate (e.g. 18.00) |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active status |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
-### 12. `invoices`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `invoice_number` VARCHAR(50) UNIQUE NOT NULL
-- `subscription_id` UUID NOT NULL REFERENCES subscriptions(id)
-- `customer_id` UUID NOT NULL REFERENCES customer_profiles(id)
-- `period_start` DATE NOT NULL
-- `period_end` DATE NOT NULL
-- `due_date` DATE NOT NULL
-- `status` VARCHAR(20) NOT NULL CHECK (status IN ('draft', 'confirmed', 'partially_paid', 'paid', 'cancelled')) DEFAULT 'confirmed'
-- `subtotal` NUMERIC(12, 2) NOT NULL
-- `discount_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `tax_amount` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `total_amount` NUMERIC(12, 2) NOT NULL
-- `amount_paid` NUMERIC(12, 2) NOT NULL DEFAULT 0.00
-- `amount_due` NUMERIC(12, 2) NOT NULL
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
-- **CRITICAL CONSTRAINT:** `CONSTRAINT unique_sub_period UNIQUE(subscription_id, period_start)`
+### 2.8 `discounts`
+Promotional coupons and volume discount rules.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Discount identifier |
+| `code` | `TEXT` / `VARCHAR(50)` | `UNIQUE NOT NULL` | Coupon code (e.g. EARLYBIRD10) |
+| `type` | `TEXT` / `VARCHAR(20)` | `CHECK (type IN ('fixed', 'percentage'))` | Discount type |
+| `value` | `NUMERIC(12, 2)` | `NOT NULL` | Discount amount or percentage |
+| `min_purchase_amount`| `NUMERIC(12, 2)` | `DEFAULT 0.00` | Minimum subtotal required |
+| `min_quantity` | `INTEGER` | `DEFAULT 0` | Minimum seat quantity required |
+| `start_date` | `DATE` / `TEXT` | `NULLABLE` | Start of validity period |
+| `end_date` | `DATE` / `TEXT` | `NULLABLE` | End of validity period |
+| `max_uses` | `INTEGER` | `DEFAULT 0` | Max total usage (0 = unlimited) |
+| `used_count` | `INTEGER` | `DEFAULT 0` | Total times consumed |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active status |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
-### 13. `invoice_lines`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `invoice_id` UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE
-- `product_id` UUID NOT NULL REFERENCES products(id)
-- `variant_id` UUID REFERENCES product_variants(id)
-- `description` VARCHAR(255) NOT NULL
-- `quantity` INTEGER NOT NULL
-- `unit_price` NUMERIC(12, 2) NOT NULL
-- `subtotal` NUMERIC(12, 2) NOT NULL
+### 2.9 `quotations` & `quotation_lines`
+Customer price offers drafted by staff before turning into subscriptions.
+- `quotations`: `id`, `quotation_number` (UNIQUE), `customer_id`, `plan_id`, `discount_id`, `tax_id`, `status` (`'draft'`, `'quotation'`, `'confirmed'`, `'cancelled'`), `valid_until`, `subtotal`, `discount_amount`, `tax_amount`, `total_amount`, `created_at`.
+- `quotation_lines`: `id`, `quotation_id` (CASCADE), `product_id`, `variant_id`, `quantity`, `unit_price`, `subtotal`.
 
-### 14. `payments`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `invoice_id` UUID NOT NULL REFERENCES invoices(id)
-- `amount` NUMERIC(12, 2) NOT NULL CHECK (amount > 0)
-- `payment_method` VARCHAR(50) NOT NULL DEFAULT 'razorpay'
-- `gateway_order_id` VARCHAR(100)
-- `gateway_payment_id` VARCHAR(100) UNIQUE
-- `gateway_signature` VARCHAR(255)
-- `status` VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'successful', 'failed')) DEFAULT 'successful'
-- `notes` TEXT
-- `recorded_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.10 `subscriptions` & `subscription_lines`
+Active recurring contracts driving the billing schedule.
+- `subscriptions`: `id`, `subscription_number` (UNIQUE), `customer_id`, `plan_id`, `discount_id`, `tax_id`, `status` (`'draft'`, `'quotation'`, `'confirmed'`, `'active'`, `'paused'`, `'closed'`, `'expired'`), `start_date`, `end_date`, `next_billing_date`, `billing_frequency`, `subtotal`, `discount_amount`, `tax_amount`, `total_amount`, `created_at`.
+- `subscription_lines`: `id`, `subscription_id` (CASCADE), `product_id`, `variant_id`, `quantity`, `unit_price`, `subtotal`.
 
-### 15. `audit_logs`
-- `id` UUID PRIMARY KEY DEFAULT gen_random_uuid()
-- `user_id` UUID REFERENCES users(id)
-- `action` VARCHAR(100) NOT NULL
-- `entity` VARCHAR(100) NOT NULL
-- `entity_id` UUID
-- `payload` JSONB
-- `created_at` TIMESTAMPTZ DEFAULT NOW()
+### 2.11 `invoices` & `invoice_lines`
+Periodic billing statements generated from active subscriptions.
+- `invoices`:
+  - `id`: Primary key UUID.
+  - `invoice_number`: Unique invoice number (e.g. `INV-123456-789`).
+  - `subscription_id`: Foreign key to `subscriptions(id)`.
+  - `customer_id`: Foreign key to `customer_profiles(id)`.
+  - `period_start`: Billing cycle start date.
+  - `period_end`: Billing cycle end date.
+  - `due_date`: Payment due date.
+  - `status`: `'draft' | 'confirmed' | 'partially_paid' | 'paid' | 'cancelled'`.
+  - `subtotal`, `discount_amount`, `tax_amount`, `total_amount`: Authoritative monetary snapshot.
+  - `amount_paid`: Sum of verified successful payments.
+  - `amount_due`: Remaining outstanding balance (`total_amount - amount_paid`).
+  - **CRITICAL CONSTRAINT:** `CONSTRAINT unique_sub_period UNIQUE(subscription_id, period_start)`  
+    *(Guarantees that re-running billing never creates duplicate period invoices).*
+- `invoice_lines`:
+  - `id`, `invoice_id` (CASCADE), `product_id`, `variant_id`, `description`, `quantity`, `unit_price`, `subtotal`.  
+    *(Stores snapshot descriptions and prices so catalogue changes never alter past invoices).*
 
+### 2.12 `payments`
+Audit trail of recorded customer settlements.
+- `id`: Primary key UUID.
+- `invoice_id`: Foreign key to `invoices(id)`.
+- `amount`: Verified payment amount (`CHECK (amount > 0)`).
+- `payment_method`: `'razorpay' | 'bank_transfer' | 'check' | 'cash'`.
+- `gateway_order_id`: Razorpay Order identifier.
+- `gateway_payment_id`: Razorpay Payment identifier (`UNIQUE` to enforce idempotency).
+- `gateway_signature`: Razorpay HMAC-SHA256 signature string.
+- `status`: `'pending' | 'successful' | 'failed'`.
+- `notes`: Administrative or settlement memo.
+- `recorded_at`: Timestamp.
+
+### 2.13 `audit_logs`
+System-wide audit log for compliance.
+- `id`, `user_id`, `action`, `entity`, `entity_id`, `payload` (JSONB / TEXT), `created_at`.
+
+---
+
+## 3. Migration Policy
+1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`).
+2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
+3. Zero destructive changes to historical invoices or payment records.
