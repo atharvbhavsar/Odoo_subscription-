@@ -50,8 +50,8 @@ export const QuotationsPage: React.FC = () => {
           catalogService.getCustomers(),
           catalogService.getProducts(),
           catalogService.getPlans({ status: 'active' }),
-          catalogService.getTaxes(),
-          catalogService.getDiscounts(),
+          catalogService.getTaxes({ status: 'active' }),
+          catalogService.getDiscounts({ status: 'active' }),
           quotationTemplateService.getTemplates(false), // only active templates
         ]);
         setCustomers(custs);
@@ -475,7 +475,7 @@ export const QuotationsPage: React.FC = () => {
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">No Discount</option>
-                    {discounts.map((d) => (
+                    {discounts.filter((d) => d.is_active === 1 || d.is_active === true).map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.code} ({d.type === 'percentage' ? `${d.value}% off` : `$${d.value} off`})
                       </option>
@@ -490,7 +490,7 @@ export const QuotationsPage: React.FC = () => {
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">No Tax</option>
-                    {taxes.map((t) => (
+                    {taxes.filter((t) => t.is_active === 1 || t.is_active === true).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name} ({t.rate_percentage}%)
                       </option>

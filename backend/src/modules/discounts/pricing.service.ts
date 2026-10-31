@@ -116,6 +116,7 @@ export class PricingService {
         end_date?: string;
         max_uses: number;
         used_count: number;
+        applicable_product_id?: string | null;
         is_active: number;
       }>('SELECT * FROM discounts WHERE id = ?', [discountId]);
 
@@ -129,10 +130,20 @@ export class PricingService {
         const meetsQuantity = totalQuantity >= (discount.min_quantity || 0);
 
         if (withinDates && withinUsage && meetsPurchase && meetsQuantity) {
-          if (discount.type === 'percentage') {
-            discountAmount = this.round((subtotal * discount.value) / 100);
-          } else {
-            discountAmount = this.round(Math.min(discount.value, subtotal));
+          let eligibleSubtotal = subtotal;
+          if (discount.applicable_product_id) {
+            eligibleSubtotal = lines
+              .filter((l) => l.productId === discount.applicable_product_id)
+              .reduce((sum, l) => sum + l.subtotal, 0);
+            eligibleSubtotal = this.round(eligibleSubtotal);
+          }
+
+          if (eligibleSubtotal > 0) {
+            if (discount.type === 'percentage') {
+              discountAmount = this.round((eligibleSubtotal * discount.value) / 100);
+            } else {
+              discountAmount = this.round(Math.min(discount.value, eligibleSubtotal));
+            }
           }
         }
       }
@@ -143,12 +154,24 @@ export class PricingService {
     // Apply Tax
     let taxAmount = 0;
     if (taxId) {
-      const tax = await db.queryOne<{ id: string; name: string; rate_percentage: number; is_active: number }>(
-        'SELECT * FROM taxes WHERE id = ?',
-        [taxId]
-      );
+      const tax = await db.queryOne<{
+        id: string;
+        name: string;
+        rate_percentage: number;
+        start_date?: string;
+        end_date?: string;
+        is_active: number;
+      }>('SELECT * FROM taxes WHERE id = ?', [taxId]);
+
       if (tax && tax.is_active) {
-        taxAmount = this.round((discountedSubtotal * tax.rate_percentage) / 100);
+        const now = new Date().toISOString().split('T')[0];
+        const withinTaxDates =
+          (!tax.start_date || tax.start_date <= now) &&
+          (!tax.end_date || tax.end_date >= now);
+
+        if (withinTaxDates) {
+          taxAmount = this.round((discountedSubtotal * tax.rate_percentage) / 100);
+        }
       }
     }
 

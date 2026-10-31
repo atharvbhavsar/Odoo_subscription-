@@ -17,6 +17,7 @@
     "test:addon": "tsx tests/addon_tests.ts",
     "test:product": "tsx tests/product_tests.ts",
     "test:plan": "tsx tests/plan_tests.ts",
+    "test:tax-discount": "tsx tests/tax_discount_tests.ts",
     "test:all": "tsx tests/auth_tests.ts && tsx tests/billing_tests.ts && tsx tests/invoice_tests.ts && tsx tests/pdf_email_tests.ts && tsx tests/dashboard_tests.ts && tsx tests/billing_run_http_tests.ts && tsx tests/addon_tests.ts && tsx tests/run_tests.ts",
     "migrate": "tsx src/config/migrate.ts",
     "seed": "tsx src/config/seed.ts"

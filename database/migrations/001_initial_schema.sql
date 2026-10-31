@@ -81,14 +81,19 @@ CREATE INDEX IF NOT EXISTS idx_plan_lines_plan_id ON plan_lines(plan_id);
 CREATE TABLE IF NOT EXISTS taxes (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  description TEXT,
   rate_percentage REAL NOT NULL DEFAULT 0.00,
+  start_date TEXT,
+  end_date TEXT,
   is_active INTEGER DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS discounts (
   id TEXT PRIMARY KEY,
   code TEXT UNIQUE NOT NULL,
+  description TEXT,
   type TEXT NOT NULL CHECK (type IN ('fixed', 'percentage')),
   value REAL NOT NULL,
   min_purchase_amount REAL DEFAULT 0.00,
@@ -97,8 +102,10 @@ CREATE TABLE IF NOT EXISTS discounts (
   end_date TEXT,
   max_uses INTEGER DEFAULT 0,
   used_count INTEGER DEFAULT 0,
+  applicable_product_id TEXT REFERENCES products(id),
   is_active INTEGER DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS quotations (

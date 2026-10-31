@@ -108,3 +108,4 @@ test('Plan: Inactive plans are excluded from quotation selection', () => {
   assert.equal(selectablePlans.length, 1);
   assert.equal(selectablePlans[0].id, 'plan-01');
 });
+

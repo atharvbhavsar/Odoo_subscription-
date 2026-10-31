@@ -82,22 +82,32 @@ export interface Plan {
 export interface Tax {
   id: string;
   name: string;
+  description?: string | null;
   rate_percentage: number;
-  is_active: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_active: number | boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Discount {
   id: string;
   code: string;
+  description?: string | null;
   type: 'fixed' | 'percentage';
   value: number;
   min_purchase_amount: number;
   min_quantity: number;
-  start_date?: string;
-  end_date?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   max_uses: number;
   used_count: number;
-  is_active: number;
+  applicable_product_id?: string | null;
+  applicable_product_name?: string | null;
+  is_active: number | boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface QuotationLine {

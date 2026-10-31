@@ -175,25 +175,98 @@ export const catalogService = {
     });
   },
 
-  async getTaxes() {
-    return apiRequest<Tax[]>('/taxes');
+  /**
+   * Taxes API
+   */
+  async getTaxes(params?: { search?: string; status?: 'all' | 'active' | 'inactive' }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status) query.append('status', params.status);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<Tax[]>(`/taxes${queryString}`);
   },
 
-  async createTax(data: { name: string; rate_percentage: number }) {
+  async getTax(id: string) {
+    return apiRequest<Tax>(`/taxes/${id}`);
+  },
+
+  async createTax(data: Partial<Tax>) {
     return apiRequest<Tax>('/taxes', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async getDiscounts() {
-    return apiRequest<Discount[]>('/discounts');
+  async updateTax(id: string, data: Partial<Tax>) {
+    return apiRequest<Tax>(`/taxes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async activateTax(id: string) {
+    return apiRequest<Tax>(`/taxes/${id}/activate`, {
+      method: 'PATCH',
+    });
+  },
+
+  async deactivateTax(id: string) {
+    return apiRequest<Tax>(`/taxes/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  async deleteTax(id: string) {
+    return apiRequest<{ id: string }>(`/taxes/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Discounts API
+   */
+  async getDiscounts(params?: { search?: string; status?: 'all' | 'active' | 'inactive'; type?: 'all' | 'percentage' | 'fixed' }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status) query.append('status', params.status);
+    if (params?.type && params.type !== 'all') query.append('type', params.type);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<Discount[]>(`/discounts${queryString}`);
+  },
+
+  async getDiscount(id: string) {
+    return apiRequest<Discount>(`/discounts/${id}`);
   },
 
   async createDiscount(data: Partial<Discount>) {
     return apiRequest<Discount>('/discounts', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async updateDiscount(id: string, data: Partial<Discount>) {
+    return apiRequest<Discount>(`/discounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async activateDiscount(id: string) {
+    return apiRequest<Discount>(`/discounts/${id}/activate`, {
+      method: 'PATCH',
+    });
+  },
+
+  async deactivateDiscount(id: string) {
+    return apiRequest<Discount>(`/discounts/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  async deleteDiscount(id: string) {
+    return apiRequest<{ id: string }>(`/discounts/${id}`, {
+      method: 'DELETE',
     });
   },
 

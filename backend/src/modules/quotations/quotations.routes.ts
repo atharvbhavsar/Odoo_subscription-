@@ -89,7 +89,9 @@ const createQuotationSchema = z.object({
 // Staff/Admin creates quotation
 quotationsRouter.post('/', requireAuth, requireRole(['admin', 'staff']), validateRequest(createQuotationSchema), async (req: Request, res: Response) => {
   const { customer_id, plan_id, discount_id, tax_id, valid_until, lines } = req.body;
+  const today = new Date().toISOString().split('T')[0];
 
+  // 1. Validate Plan
   const plan = await db.queryOne<{
     id: string;
     min_qty: number;
@@ -106,7 +108,6 @@ quotationsRouter.post('/', requireAuth, requireRole(['admin', 'staff']), validat
     return res.status(400).json({ error: { code: 'INACTIVE_PLAN', message: 'Selected plan is inactive and cannot be used for new quotations' } });
   }
 
-  const today = new Date().toISOString().split('T')[0];
   if (plan.start_date && today < plan.start_date) {
     return res.status(400).json({ error: { code: 'PLAN_NOT_AVAILABLE', message: `Plan is not yet available (available from ${plan.start_date})` } });
   }
@@ -119,6 +120,61 @@ quotationsRouter.post('/', requireAuth, requireRole(['admin', 'staff']), validat
     return res.status(400).json({
       error: { code: 'MIN_QUANTITY_NOT_MET', message: `Plan requires a minimum quantity of ${plan.min_qty}` },
     });
+  }
+
+  // 2. Validate Tax rule if provided
+  if (tax_id) {
+    const tax = await db.queryOne<{
+      id: string;
+      name: string;
+      is_active: number;
+      start_date?: string | null;
+      end_date?: string | null;
+    }>('SELECT id, name, is_active, start_date, end_date FROM taxes WHERE id = ?', [tax_id]);
+
+    if (!tax) {
+      return res.status(400).json({ error: { code: 'INVALID_TAX', message: 'Selected tax rule does not exist' } });
+    }
+    if (!tax.is_active) {
+      return res.status(400).json({ error: { code: 'INACTIVE_TAX', message: 'Selected tax rule is inactive and cannot be applied to new quotations' } });
+    }
+    if (tax.start_date && today < tax.start_date) {
+      return res.status(400).json({ error: { code: 'TAX_NOT_AVAILABLE', message: `Tax rule is not yet effective (effective from ${tax.start_date})` } });
+    }
+    if (tax.end_date && today > tax.end_date) {
+      return res.status(400).json({ error: { code: 'TAX_EXPIRED', message: `Tax rule expired on ${tax.end_date}` } });
+    }
+  }
+
+  // 3. Validate Discount rule if provided
+  if (discount_id) {
+    const discount = await db.queryOne<{
+      id: string;
+      code: string;
+      is_active: number;
+      start_date?: string | null;
+      end_date?: string | null;
+      max_uses: number;
+      used_count: number;
+      min_purchase_amount: number;
+      min_quantity: number;
+    }>('SELECT * FROM discounts WHERE id = ?', [discount_id]);
+
+    if (!discount) {
+      return res.status(400).json({ error: { code: 'INVALID_DISCOUNT', message: 'Selected discount code does not exist' } });
+    }
+    if (!discount.is_active) {
+      return res.status(400).json({ error: { code: 'INACTIVE_DISCOUNT', message: 'Selected discount code is inactive and cannot be applied to new quotations' } });
+    }
+    if (discount.start_date && today < discount.start_date) {
+      return res.status(400).json({ error: { code: 'DISCOUNT_NOT_AVAILABLE', message: `Discount is not yet active (active from ${discount.start_date})` } });
+    }
+    if (discount.end_date && today > discount.end_date) {
+      return res.status(400).json({ error: { code: 'DISCOUNT_EXPIRED', message: `Discount expired on ${discount.end_date}` } });
+    }
+    if (discount.max_uses > 0 && discount.used_count >= discount.max_uses) {
+      return res.status(400).json({ error: { code: 'DISCOUNT_MAX_USES_REACHED', message: 'Discount has reached its maximum allowable uses' } });
+    }
   }
 
   // Calculate authoritative pricing
@@ -206,6 +262,19 @@ quotationsRouter.post('/:id/confirm', requireAuth, requireRole(['admin', 'staff'
 
   if (!plan.is_active) {
     return res.status(400).json({ error: { code: 'INACTIVE_PLAN', message: 'Associated plan is inactive and cannot be activated into a new subscription' } });
+  }
+
+  // Check discount usage limit if discount was applied
+  if (quote.discount_id) {
+    const discount = await db.queryOne<{ max_uses: number; used_count: number }>(
+      'SELECT max_uses, used_count FROM discounts WHERE id = ?',
+      [quote.discount_id]
+    );
+    if (discount && discount.max_uses > 0 && discount.used_count >= discount.max_uses) {
+      return res.status(400).json({
+        error: { code: 'DISCOUNT_MAX_USES_REACHED', message: 'Cannot confirm quotation: discount maximum usage limit has been reached' },
+      });
+    }
   }
 
   const quoteLines = await db.query('SELECT * FROM quotation_lines WHERE quotation_id = ?', [quoteId]);
