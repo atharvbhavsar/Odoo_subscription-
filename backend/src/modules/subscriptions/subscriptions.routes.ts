@@ -37,12 +37,13 @@ subscriptionsRouter.get('/', requireAuth, async (req: Request, res: Response) =>
   await evaluateExpiredSubscriptions(today, customerId);
 
   let sql = `
-    SELECT s.*, c.name as customer_name, c.company_name, c.email as customer_email,
+    SELECT s.*, c.name as customer_name, c.company_name, u.email as customer_email,
            p.name as plan_name, p.can_pause, p.can_renew, p.can_close_early, p.billing_interval,
            (SELECT COUNT(*) FROM subscription_lines sl WHERE sl.subscription_id = s.id) as line_count,
            (SELECT COUNT(*) FROM subscription_addons sa WHERE sa.subscription_id = s.id AND sa.status != 'removed') as active_addon_count
     FROM subscriptions s
     JOIN customer_profiles c ON s.customer_id = c.id
+    LEFT JOIN users u ON c.user_id = u.id
     JOIN plans p ON s.plan_id = p.id
   `;
   const conditions: string[] = [];

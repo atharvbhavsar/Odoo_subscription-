@@ -3,14 +3,14 @@ import { User } from '../types';
 
 export const authService = {
   async register(data: { email: string; password: string; name: string; companyName?: string; phone?: string; address?: string }) {
-    return apiRequest<{ user: User }>('/auth/register', {
+    return apiRequest<{ user: User; token?: string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async login(data: { email: string; password: string }) {
-    return apiRequest<{ user: User }>('/auth/login', {
+    return apiRequest<{ user: User; token?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -23,7 +23,7 @@ export const authService = {
   },
 
   async me() {
-    return apiRequest<{ user: User }>('/auth/me', {
+    return apiRequest<{ user: User; token?: string }>('/auth/me', {
       method: 'GET',
     });
   },

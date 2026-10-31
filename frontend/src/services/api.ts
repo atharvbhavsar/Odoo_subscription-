@@ -19,10 +19,16 @@ export async function apiRequest<T = any>(
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const defaultHeaders: HeadersInit = {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('brightloop_token') : null;
+
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`;
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -47,4 +53,3 @@ export async function apiRequest<T = any>(
 
   return (data?.data !== undefined ? data.data : data) as T;
 }
-
