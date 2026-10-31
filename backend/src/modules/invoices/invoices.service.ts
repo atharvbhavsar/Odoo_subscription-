@@ -172,8 +172,8 @@ export class InvoiceService {
     const invoice = await db.queryOne<any>(
       `SELECT i.*, c.name as customer_name, c.company_name, c.address as customer_address, s.subscription_number
        FROM invoices i
-       JOIN customer_profiles c ON i.customer_id = c.id
-       JOIN subscriptions s ON i.subscription_id = s.id
+       LEFT JOIN customer_profiles c ON i.customer_id = c.id
+       LEFT JOIN subscriptions s ON i.subscription_id = s.id
        WHERE i.id = ?`,
       [invoiceId]
     );
@@ -185,12 +185,24 @@ export class InvoiceService {
       throw err;
     }
 
-    // Role-based customer isolation
-    if (user.role === 'customer' && user.customerId !== invoice.customer_id) {
-      const err = new Error('Unauthorized access to invoice') as any;
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
+    // Role-based customer isolation (Admin & Staff have full visibility)
+    if (user.role === 'customer') {
+      let isOwner = Boolean(user.customerId && user.customerId === invoice.customer_id);
+      if (!isOwner && user.customerId) {
+        const profile = await db.queryOne<{ user_id: string }>(
+          'SELECT user_id FROM customer_profiles WHERE id = ?',
+          [invoice.customer_id]
+        );
+        if (profile && (profile.user_id === user.customerId || profile.user_id === (user as any).id)) {
+          isOwner = true;
+        }
+      }
+      if (!isOwner) {
+        const err = new Error('Unauthorized access to invoice') as any;
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
     }
 
     const lines = await db.query('SELECT * FROM invoice_lines WHERE invoice_id = ?', [invoice.id]);

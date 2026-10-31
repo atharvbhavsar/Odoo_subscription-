@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { dashboardService } from '../../services/payment.service';
+import { invoiceService } from '../../services/invoice.service';
 import { DashboardSummary } from '../../types';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
@@ -20,6 +21,8 @@ import {
   Info,
   ArrowUpRight,
   ShieldAlert,
+  Eye,
+  FileDown,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -551,6 +554,7 @@ export const DashboardPage: React.FC = () => {
                   <th className="py-2.5 px-3">Due Date</th>
                   <th className="py-2.5 px-3">Total</th>
                   <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -562,11 +566,29 @@ export const DashboardPage: React.FC = () => {
                       <td className="py-2.5 px-3 text-slate-500">{inv.due_date}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-900">${Number(inv.total_amount).toFixed(2)}</td>
                       <td className="py-2.5 px-3"><Badge status={inv.status} /></td>
+                      <td className="py-2.5 px-3 text-right space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => invoiceService.viewPdf(inv.id)}
+                          title="View Invoice PDF"
+                          className="inline-flex items-center p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => invoiceService.downloadPdf(inv.id, inv.invoice_number)}
+                          title="Download Invoice PDF"
+                          className="inline-flex items-center p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-400">
+                    <td colSpan={6} className="py-6 text-center text-slate-400">
                       No invoices recorded yet.
                     </td>
                   </tr>

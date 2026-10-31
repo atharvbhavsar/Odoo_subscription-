@@ -51,6 +51,41 @@ export const invoiceService = {
 
   getPdfUrl(id: string, download = false) {
     const base = import.meta.env.VITE_API_BASE_URL || '/api';
-    return `${base}/invoices/${id}/pdf${download ? '?download=true' : ''}`;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('brightloop_token') : null;
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    return `${base}/invoices/${id}/pdf?download=${download}${tokenParam}`;
+  },
+
+  async viewPdf(id: string) {
+    const url = this.getPdfUrl(id, false);
+    window.open(url, '_blank');
+  },
+
+  async downloadPdf(id: string, invoiceNumber?: string) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('brightloop_token') : null;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const base = import.meta.env.VITE_API_BASE_URL || '/api';
+    const url = `${base}/invoices/${id}/pdf?download=true`;
+
+    try {
+      const res = await fetch(url, { headers, credentials: 'include' });
+      if (!res.ok) {
+        window.open(this.getPdfUrl(id, true), '_blank');
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Invoice-${invoiceNumber || id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(this.getPdfUrl(id, true), '_blank');
+    }
   },
 };

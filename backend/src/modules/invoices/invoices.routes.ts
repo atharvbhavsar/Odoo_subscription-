@@ -61,6 +61,11 @@ invoicesRouter.get('/:id', requireAuth, async (req: Request, res: Response) => {
 invoicesRouter.post('/:id/confirm', requireAuth, requireRole(['admin', 'staff']), async (req: Request, res: Response) => {
   try {
     const confirmed = await InvoiceService.confirmInvoice(req.params.id, req.user?.id);
+    try {
+      await EmailService.sendInvoiceEmail(confirmed.id, { userId: req.user?.id });
+    } catch (mailErr) {
+      console.warn('Notice: Background invoice email delivery deferred:', mailErr);
+    }
     res.json({
       data: confirmed,
       message: 'Draft invoice confirmed successfully',

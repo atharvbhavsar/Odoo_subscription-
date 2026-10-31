@@ -38,6 +38,19 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
   }
 
+  // 3. Check query parameter token (for direct PDF downloads, new browser tabs, media links)
+  const queryToken = req.query.token as string | undefined;
+  if (queryToken && typeof queryToken === 'string') {
+    const verifiedUser = verifyToken(queryToken);
+    if (verifiedUser) {
+      req.user = verifiedUser;
+      if (req.session) {
+        req.session.user = verifiedUser;
+      }
+      return next();
+    }
+  }
+
   return res.status(401).json({
     error: {
       code: 'UNAUTHORIZED',

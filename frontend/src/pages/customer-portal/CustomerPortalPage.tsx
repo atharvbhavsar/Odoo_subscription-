@@ -1045,15 +1045,22 @@ export const CustomerPortalPage: React.FC = () => {
                             <Badge status={inv.status} />
                           </td>
                           <td className="py-3 px-4 text-right space-x-2">
-                            <a
-                              href={invoiceService.getPdfUrl(inv.id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Download PDF"
+                            <button
+                              type="button"
+                              onClick={() => invoiceService.viewPdf(inv.id)}
+                              title="View Invoice PDF"
+                              className="inline-flex items-center space-x-1 p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => invoiceService.downloadPdf(inv.id, inv.invoice_number)}
+                              title="Download Invoice PDF"
                               className="inline-flex items-center space-x-1 p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                             >
                               <FileDown className="w-4 h-4" />
-                            </a>
+                            </button>
                             {inv.amount_due > 0 && (
                               <button
                                 onClick={() => handlePayInvoice(inv)}

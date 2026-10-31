@@ -70,10 +70,22 @@ export class PdfService {
         // Right Column: Dates & Subscription Info
         doc.fontSize(9).fillColor(mutedTextColor).font('Helvetica-Bold').text('STATEMENT DETAILS:', 350, 130);
         doc.fontSize(9).fillColor(darkTextColor).font('Helvetica');
-        const issueDate = invoice.created_at ? invoice.created_at.split(' ')[0] : new Date().toISOString().split('T')[0];
+        let issueDate = new Date().toISOString().split('T')[0];
+        const rawCreatedAt: any = invoice.created_at;
+        if (rawCreatedAt) {
+          if (rawCreatedAt instanceof Date) {
+            issueDate = rawCreatedAt.toISOString().split('T')[0];
+          } else {
+            issueDate = String(rawCreatedAt).split(' ')[0].split('T')[0];
+          }
+        }
+        const rawPeriodStart: any = invoice.period_start;
+        const rawPeriodEnd: any = invoice.period_end;
+        const periodStart = rawPeriodStart instanceof Date ? rawPeriodStart.toISOString().split('T')[0] : String(rawPeriodStart || '');
+        const periodEnd = rawPeriodEnd instanceof Date ? rawPeriodEnd.toISOString().split('T')[0] : String(rawPeriodEnd || '');
         doc.text(`Issue Date: ${issueDate}`, 350, 145);
         doc.text(`Due Date: ${invoice.due_date || 'Due upon receipt'}`, 350, 159);
-        doc.text(`Billing Period: ${invoice.period_start} to ${invoice.period_end}`, 350, 172);
+        doc.text(`Billing Period: ${periodStart} to ${periodEnd}`, 350, 172);
         if (invoice.subscription_number) {
           doc.text(`Subscription Ref: ${invoice.subscription_number}`, 350, 185);
         }

@@ -27,21 +27,37 @@ export class EmailService {
     this.simulateFailure = fail;
   }
 
-  private static getTransporter(): Transporter {
+  private static async getTransporter(): Promise<Transporter> {
     if (this.transporter) return this.transporter;
 
-    if (env.EMAIL_ENABLED && env.SMTP_USER) {
+    if (env.SMTP_USER && env.SMTP_PASS) {
       this.transporter = nodemailer.createTransport({
-        host: env.SMTP_HOST,
-        port: env.SMTP_PORT,
+        host: env.SMTP_HOST || 'smtp.mailtrap.io',
+        port: env.SMTP_PORT || 587,
         secure: env.SMTP_PORT === 465,
         auth: {
           user: env.SMTP_USER,
           pass: env.SMTP_PASS,
         },
       });
-    } else {
-      // Safe development/test JSON transport (captures mail without external network dependency)
+      return this.transporter;
+    }
+
+    // Automatically initialize an active Ethereal SMTP account so real emails with attached PDFs are dispatched
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      console.log(`[EmailService] Initialized Ethereal SMTP test account: ${testAccount.user}`);
+      this.transporter = nodemailer.createTransport({
+        host: testAccount.smtp.host,
+        port: testAccount.smtp.port,
+        secure: testAccount.smtp.secure,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+    } catch (err) {
+      console.warn('[EmailService] Fallback to JSON transport:', err);
       this.transporter = nodemailer.createTransport({
         jsonTransport: true,
       });
@@ -74,17 +90,38 @@ export class EmailService {
       throw err;
     }
 
-    // Customer details and recipient email
-    const customer = await db.queryOne<{ name: string; company_name: string; address: string; user_id: string }>(
+    // Customer details and recipient email - resolve to customer login email
+    let customer = await db.queryOne<{ name: string; company_name: string; address: string; user_id: string }>(
       'SELECT * FROM customer_profiles WHERE id = ?',
       [invoice.customer_id]
     );
 
-    let recipient = options.recipientEmail;
-    if (!recipient && customer?.user_id) {
-      const user = await db.queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [customer.user_id]);
-      recipient = user?.email;
+    if (!customer) {
+      customer = await db.queryOne<{ name: string; company_name: string; address: string; user_id: string }>(
+        'SELECT * FROM customer_profiles WHERE user_id = ?',
+        [invoice.customer_id]
+      );
     }
+
+    let recipient = options.recipientEmail;
+    if (!recipient) {
+      // 1. Resolve customer login email via customer_profiles.user_id
+      if (customer?.user_id) {
+        const u = await db.queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [customer.user_id]);
+        if (u?.email) recipient = u.email;
+      }
+      // 2. Resolve if invoice.customer_id is a users.id
+      if (!recipient) {
+        const u = await db.queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [invoice.customer_id]);
+        if (u?.email) recipient = u.email;
+      }
+      // 3. Resolve if options.userId was passed
+      if (!recipient && options.userId) {
+        const u = await db.queryOne<{ email: string }>('SELECT email FROM users WHERE id = ?', [options.userId]);
+        if (u?.email) recipient = u.email;
+      }
+    }
+
     if (!recipient) {
       recipient = 'customer@example.com';
     }
@@ -133,7 +170,7 @@ export class EmailService {
         </div>
       `;
 
-      const transporter = this.getTransporter();
+      const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
         from: env.SMTP_FROM,
         to: recipient,
@@ -229,7 +266,7 @@ export class EmailService {
         email: record.recipient_email,
       });
 
-      const transporter = this.getTransporter();
+      const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
         from: env.SMTP_FROM,
         to: record.recipient_email,

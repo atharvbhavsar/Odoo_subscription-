@@ -8,6 +8,7 @@ import { requireAuth } from '../../middleware/auth.middleware';
 import { requireRole } from '../../middleware/role.middleware';
 import { AuditService } from '../audit/audit.service';
 import { BillingService } from '../billing/billing.service';
+import { EmailService } from '../invoices/email.service';
 import { subscriptionAddonsRouter } from './subscription-addons.routes';
 
 export const subscriptionsRouter = Router();
@@ -697,6 +698,13 @@ subscriptionsRouter.post('/subscribe', requireAuth, async (req: Request, res: Re
       invoiceId,
       customerId
     });
+
+    // Automatically send invoice email with PDF attachment to customer login email
+    try {
+      await EmailService.sendInvoiceEmail(invoiceId, { userId: req.user?.id });
+    } catch (mailErr) {
+      console.warn('Notice: Background invoice email delivery deferred:', mailErr);
+    }
 
     res.status(201).json({
       data: {

@@ -15,6 +15,7 @@ import {
   Check,
   XCircle,
   Mail,
+  Eye,
 } from 'lucide-react';
 
 export const InvoicesPage: React.FC = () => {
@@ -279,16 +280,25 @@ export const InvoicesPage: React.FC = () => {
                   <td className="py-3 px-4 font-bold text-rose-600">${Number(inv.amount_due).toFixed(2)}</td>
                   <td className="py-3 px-4"><Badge status={inv.status} /></td>
                   <td className="py-3 px-4 text-right space-x-2">
-                    {/* PDF Download */}
-                    <a
-                      href={invoiceService.getPdfUrl(inv.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    {/* View PDF */}
+                    <button
+                      type="button"
+                      onClick={() => invoiceService.viewPdf(inv.id)}
+                      title="View PDF"
+                      className="inline-flex items-center space-x-1 p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+
+                    {/* Download PDF */}
+                    <button
+                      type="button"
+                      onClick={() => invoiceService.downloadPdf(inv.id, inv.invoice_number)}
                       title="Download PDF"
                       className="inline-flex items-center space-x-1 p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                     >
                       <FileDown className="w-4 h-4" />
-                    </a>
+                    </button>
 
                     {/* Email Statement */}
                     <button
