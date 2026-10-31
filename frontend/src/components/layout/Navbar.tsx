@@ -35,12 +35,21 @@ export const Navbar: React.FC = () => {
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center space-x-3">
-        <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-lg tracking-wider">
-          B
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-slate-800 leading-tight">Brightloop</h1>
-          <p className="text-xs text-slate-400 font-medium">Subscription Manager</p>
+        <img
+          src="/logo.png"
+          alt="Brightloop Subscription Manager"
+          className="h-9 w-auto object-contain hidden sm:block"
+        />
+        <div className="flex items-center space-x-2.5 sm:hidden">
+          <img
+            src="/icon.png"
+            alt="Brightloop"
+            className="w-8 h-8 object-contain"
+          />
+          <div>
+            <h1 className="text-base font-bold text-slate-800 leading-tight">Brightloop</h1>
+            <p className="text-[10px] text-slate-400 font-medium">Subscription Manager</p>
+          </div>
         </div>
       </div>
 
@@ -67,4 +76,3 @@ export const Navbar: React.FC = () => {
     </header>
   );
 };
-

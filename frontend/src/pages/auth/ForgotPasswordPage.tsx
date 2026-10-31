@@ -31,6 +31,7 @@ export const ForgotPasswordPage: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
         <div className="text-center mb-6">
+          <img src="/logo.png" alt="Brightloop Subscription Manager" className="h-12 mx-auto object-contain mb-3" />
           <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl mx-auto flex items-center justify-center mb-3">
             <Mail className="w-6 h-6" />
           </div>

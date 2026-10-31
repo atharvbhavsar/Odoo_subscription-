@@ -110,8 +110,13 @@ export const quotationService = {
 };
 
 export const subscriptionService = {
-  async getSubscriptions() {
-    return apiRequest<Subscription[]>('/subscriptions');
+  async getSubscriptions(params?: { search?: string; status?: string; customer_id?: string }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
+    if (params?.customer_id) query.append('customer_id', params.customer_id);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<Subscription[]>(`/subscriptions${queryString}`);
   },
 
   async getSubscription(id: string) {
@@ -124,6 +129,10 @@ export const subscriptionService = {
 
   async resume(id: string) {
     return apiRequest<any>(`/subscriptions/${id}/resume`, { method: 'POST' });
+  },
+
+  async renew(id: string) {
+    return apiRequest<any>(`/subscriptions/${id}/renew`, { method: 'POST' });
   },
 
   async close(id: string) {

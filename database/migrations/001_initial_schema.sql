@@ -156,7 +156,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   tax_amount REAL NOT NULL DEFAULT 0.00,
   total_amount REAL NOT NULL DEFAULT 0.00,
   quotation_id TEXT REFERENCES quotations(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  paused_at TIMESTAMP,
+  closed_at TIMESTAMP,
+  renewed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS subscription_lines (

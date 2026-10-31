@@ -164,7 +164,9 @@ export interface SubscriptionLine {
   product_id: string;
   variant_id?: string | null;
   product_name?: string;
-  attribute_value?: string;
+  attribute_name?: string | null;
+  attribute_value?: string | null;
+  variant_price_extra?: number | null;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -176,23 +178,41 @@ export interface Subscription {
   customer_id: string;
   customer_name?: string;
   company_name?: string;
+  customer_email?: string;
   plan_id: string;
   plan_name?: string;
+  plan_is_active?: number;
   status: 'draft' | 'quotation' | 'confirmed' | 'active' | 'paused' | 'closed' | 'expired';
   start_date: string;
-  end_date?: string;
+  end_date?: string | null;
   next_billing_date: string;
   billing_frequency: string;
+  billing_interval?: number;
+  discount_id?: string | null;
+  discount_code?: string | null;
+  discount_type?: 'percentage' | 'fixed' | null;
+  discount_value?: number | null;
+  tax_id?: string | null;
+  tax_name?: string | null;
+  tax_rate?: number | null;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
+  quotation_id?: string | null;
   can_pause?: number;
   can_renew?: number;
   can_close_early?: number;
+  paused_at?: string | null;
+  closed_at?: string | null;
+  renewed_at?: string | null;
   created_at: string;
+  updated_at?: string | null;
+  line_count?: number;
+  active_addon_count?: number;
   lines?: SubscriptionLine[];
   addons?: SubscriptionAddon[];
+  invoices?: any[];
 }
 
 export interface InvoiceLine {

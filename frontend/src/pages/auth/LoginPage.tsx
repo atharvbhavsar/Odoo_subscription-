@@ -39,9 +39,7 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl mx-auto flex items-center justify-center text-white font-black text-2xl shadow-md mb-3">
-            B
-          </div>
+          <img src="/logo.png" alt="Brightloop Subscription Manager" className="h-14 mx-auto object-contain mb-3" />
           <h2 className="text-2xl font-bold text-slate-800">Sign in to Brightloop</h2>
           <p className="text-sm text-slate-500 mt-1">Unified Subscription & Billing Manager</p>
         </div>
