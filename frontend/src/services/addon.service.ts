@@ -40,4 +40,10 @@ export const addonService = {
       }
     );
   },
+
+  async scheduleRemoval(subscriptionId: string, addonId: string): Promise<SubscriptionAddon> {
+    return this.removeAddon(subscriptionId, addonId);
+  },
 };
+
+export const subscriptionAddonService = addonService;

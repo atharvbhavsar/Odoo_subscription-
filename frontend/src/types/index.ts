@@ -138,6 +138,7 @@ export interface Subscription {
   can_close_early?: number;
   created_at: string;
   lines?: SubscriptionLine[];
+  addons?: SubscriptionAddon[];
 }
 
 export interface InvoiceLine {

@@ -111,3 +111,6 @@ export const subscriptionService = {
     return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
   },
 };
+
+
+export { addonService, subscriptionAddonService } from './addon.service';
