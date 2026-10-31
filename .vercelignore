@@ -1,0 +1,10 @@
+node_modules
+.git
+.vercel
+*.sqlite*
+database/supabase_complete_schema_and_dataset.sql
+backend/tests
+frontend/tests
+*.md
+.env*
+coverage
