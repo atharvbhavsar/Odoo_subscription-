@@ -14,6 +14,7 @@ import {
   Filter,
   Check,
   XCircle,
+  Mail,
 } from 'lucide-react';
 
 export const InvoicesPage: React.FC = () => {
@@ -78,6 +79,23 @@ export const InvoicesPage: React.FC = () => {
       fetchInvoices();
     } catch (err: any) {
       alert(err.message || 'Failed to cancel invoice');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Send Email Handler
+  const handleSendEmail = async (inv: Invoice) => {
+    setActionLoading(true);
+    try {
+      const res = await invoiceService.sendInvoiceEmail(inv.id);
+      setPaymentSuccessMsg(
+        res.status === 'sent'
+          ? `Invoice ${inv.invoice_number} emailed successfully with PDF attachment!`
+          : `Email dispatch attempted (status: ${res.status}).`
+      );
+    } catch (err: any) {
+      alert(err.message || 'Failed to dispatch invoice email');
     } finally {
       setActionLoading(false);
     }
@@ -224,6 +242,16 @@ export const InvoicesPage: React.FC = () => {
                     >
                       <FileDown className="w-4 h-4" />
                     </a>
+
+                    {/* Email Statement */}
+                    <button
+                      onClick={() => handleSendEmail(inv)}
+                      disabled={actionLoading}
+                      title="Email Invoice PDF"
+                      className="inline-flex items-center space-x-1 p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition disabled:opacity-50"
+                    >
+                      <Mail className="w-4 h-4" />
+                    </button>
 
                     {/* Confirm Draft (Staff/Admin) */}
                     {inv.status === 'draft' && !isCustomer && (

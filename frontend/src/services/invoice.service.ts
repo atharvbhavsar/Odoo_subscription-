@@ -42,6 +42,13 @@ export const invoiceService = {
     });
   },
 
+  async sendInvoiceEmail(id: string, recipientEmail?: string) {
+    return apiRequest<{ emailId: string; status: string }>(`/invoices/${id}/send-email`, {
+      method: 'POST',
+      body: JSON.stringify({ recipientEmail }),
+    });
+  },
+
   getPdfUrl(id: string, download = false) {
     const base = import.meta.env.VITE_API_BASE_URL || '/api';
     return `${base}/invoices/${id}/pdf${download ? '?download=true' : ''}`;

@@ -3,6 +3,8 @@ import { db } from '../../config/database';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { requireRole } from '../../middleware/role.middleware';
 import { InvoiceService } from './invoices.service';
+import { PdfService } from './pdf.service';
+import { EmailService } from './email.service';
 
 export const invoicesRouter = Router();
 
@@ -93,7 +95,7 @@ invoicesRouter.post('/:id/cancel', requireAuth, requireRole(['admin', 'staff']),
   }
 });
 
-// PDF statement presentation & download integration endpoint
+// Professional PDFKit Invoice Generation endpoint (Protected by Auth & RBAC)
 invoicesRouter.get('/:id/pdf', requireAuth, async (req: Request, res: Response) => {
   try {
     const details = await InvoiceService.getInvoiceDetails(req.params.id, {
@@ -106,125 +108,94 @@ invoicesRouter.get('/:id/pdf', requireAuth, async (req: Request, res: Response) 
       [details.customer_id]
     );
 
+    const pdfBuffer = await PdfService.generateInvoicePdf(details, customer);
     const isDownload = req.query.download === 'true';
 
-    // Format HTML for print / browser-native PDF export
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Invoice ${details.invoice_number}</title>
-  <style>
-    @media print {
-      body { padding: 0; }
-      .no-print { display: none; }
-    }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
-    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
-    .title { font-size: 26px; font-weight: bold; color: #4338ca; }
-    .details { margin: 30px 0; display: flex; justify-content: space-between; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th { text-align: left; padding: 12px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-    td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
-    .totals { margin-top: 30px; margin-left: auto; width: 320px; }
-    .total-row { display: flex; justify-content: space-between; padding: 6px 0; }
-    .grand-total { font-size: 18px; font-weight: bold; border-top: 2px solid #cbd5e1; padding-top: 10px; color: #1e1b4b; }
-    .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-    .badge-paid { background: #dcfce7; color: #15803d; }
-    .badge-unpaid { background: #fee2e2; color: #b91c1c; }
-    .badge-partially { background: #fef3c7; color: #b45309; }
-    .badge-cancelled { background: #f1f5f9; color: #64748b; }
-    .actions { margin-bottom: 20px; text-align: right; }
-    .btn { background: #4f46e5; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <div class="actions no-print">
-    <button class="btn" onclick="window.print()">Print / Save as PDF</button>
-  </div>
-  <div class="header">
-    <div>
-      <div class="title">BRIGHTLOOP SOFTWARE</div>
-      <p style="margin: 4px 0; color: #64748b;">Subscription & Recurring Billing Management</p>
-      <p style="margin: 2px 0; font-size: 13px; color: #64748b;">Subscription Ref: ${details.subscription_number || 'N/A'}</p>
-    </div>
-    <div style="text-align: right;">
-      <h2 style="margin: 0 0 6px 0; color: #1e293b;">INVOICE</h2>
-      <p style="margin: 2px 0;"><strong>${details.invoice_number}</strong></p>
-      <span class="badge ${
-        details.status === 'paid'
-          ? 'badge-paid'
-          : details.status === 'partially_paid'
-          ? 'badge-partially'
-          : details.status === 'cancelled'
-          ? 'badge-cancelled'
-          : 'badge-unpaid'
-      }">${details.status}</span>
-    </div>
-  </div>
-
-  <div class="details">
-    <div>
-      <h4 style="margin: 0 0 6px 0; color: #64748b;">Billed To:</h4>
-      <p style="margin: 2px 0;"><strong>${customer?.name || 'Customer'}</strong></p>
-      <p style="margin: 2px 0;">${customer?.company_name || ''}</p>
-      <p style="margin: 2px 0;">${customer?.address || ''}</p>
-    </div>
-    <div style="text-align: right;">
-      <p style="margin: 2px 0;"><strong>Period:</strong> ${details.period_start} to ${details.period_end}</p>
-      <p style="margin: 2px 0;"><strong>Due Date:</strong> ${details.due_date}</p>
-      <p style="margin: 2px 0; font-size: 16px; font-weight: bold; color: ${details.amount_due > 0 ? '#dc2626' : '#16a34a'};">
-        <strong>Balance Due:</strong> $${Number(details.amount_due).toFixed(2)}
-      </p>
-    </div>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Unit Price</th>
-        <th>Subtotal</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${details.lines.map((l: any) => `
-        <tr>
-          <td>${l.description}</td>
-          <td>${l.quantity}</td>
-          <td>$${Number(l.unit_price).toFixed(2)}</td>
-          <td>$${Number(l.subtotal).toFixed(2)}</td>
-        </tr>
-      `).join('')}
-    </tbody>
-  </table>
-
-  <div class="totals">
-    <div class="total-row"><span>Subtotal:</span><span>$${Number(details.subtotal).toFixed(2)}</span></div>
-    ${Number(details.discount_amount) > 0 ? `<div class="total-row" style="color: #16a34a;"><span>Discount:</span><span>-$${Number(details.discount_amount).toFixed(2)}</span></div>` : ''}
-    ${Number(details.tax_amount) > 0 ? `<div class="total-row"><span>Tax:</span><span>+$${Number(details.tax_amount).toFixed(2)}</span></div>` : ''}
-    <div class="total-row grand-total"><span>Total Amount:</span><span>$${Number(details.total_amount).toFixed(2)}</span></div>
-    <div class="total-row" style="color: #2563eb;"><span>Amount Paid:</span><span>$${Number(details.amount_paid).toFixed(2)}</span></div>
-    <div class="total-row" style="font-weight: bold; color: ${Number(details.amount_due) > 0 ? '#dc2626' : '#16a34a'};">
-      <span>Amount Due:</span><span>$${Number(details.amount_due).toFixed(2)}</span>
-    </div>
-  </div>
-</body>
-</html>`;
-
-    res.setHeader('Content-Type', 'text/html');
-    if (isDownload) {
-      res.setHeader('Content-Disposition', `attachment; filename="Invoice-${details.invoice_number}.html"`);
-    } else {
-      res.setHeader('Content-Disposition', `inline; filename="Invoice-${details.invoice_number}.html"`);
-    }
-    res.send(html);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `${isDownload ? 'attachment' : 'inline'}; filename="Invoice-${details.invoice_number}.pdf"`
+    );
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
   } catch (err: any) {
     const status = err.statusCode || (err.code === 'NOT_FOUND' ? 404 : err.code === 'FORBIDDEN' ? 403 : 500);
     res.status(status).json({
       error: {
         code: err.code || 'PDF_ERROR',
+        message: err.message,
+      },
+    });
+  }
+});
+
+// Send invoice via email (Admin/Staff, or Customer requesting their own)
+invoicesRouter.post('/:id/send-email', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const details = await InvoiceService.getInvoiceDetails(req.params.id, {
+      role: req.user!.role,
+      customerId: req.user?.customerId,
+    });
+
+    const recipient = req.user?.role === 'customer' ? undefined : req.body.recipientEmail;
+    const result = await EmailService.sendInvoiceEmail(details.id, {
+      recipientEmail: recipient,
+      userId: req.user?.id,
+    });
+
+    res.json({
+      data: result,
+      message: result.status === 'sent' ? 'Invoice email dispatched successfully' : 'Invoice email dispatch failed',
+    });
+  } catch (err: any) {
+    const status = err.statusCode || (err.code === 'NOT_FOUND' ? 404 : err.code === 'FORBIDDEN' ? 403 : 500);
+    res.status(status).json({
+      error: {
+        code: err.code || 'EMAIL_DISPATCH_FAILED',
+        message: err.message,
+      },
+    });
+  }
+});
+
+// View email delivery history for an invoice
+invoicesRouter.get('/:id/emails', requireAuth, async (req: Request, res: Response) => {
+  try {
+    // Check permission
+    await InvoiceService.getInvoiceDetails(req.params.id, {
+      role: req.user!.role,
+      customerId: req.user?.customerId,
+    });
+
+    const history = await EmailService.getEmailHistory(req.params.id);
+    res.json({
+      data: history,
+      message: 'Email history retrieved successfully',
+    });
+  } catch (err: any) {
+    const status = err.statusCode || (err.code === 'NOT_FOUND' ? 404 : err.code === 'FORBIDDEN' ? 403 : 500);
+    res.status(status).json({
+      error: {
+        code: err.code || 'EMAIL_HISTORY_ERROR',
+        message: err.message,
+      },
+    });
+  }
+});
+
+// Admin/Staff: Retry failed invoice email delivery
+invoicesRouter.post('/emails/:emailId/retry', requireAuth, requireRole(['admin', 'staff']), async (req: Request, res: Response) => {
+  try {
+    const result = await EmailService.retryInvoiceEmail(req.params.emailId, req.user?.id);
+    res.json({
+      data: result,
+      message: result.status === 'sent' ? 'Invoice email retried successfully' : 'Invoice email retry failed',
+    });
+  } catch (err: any) {
+    const status = err.statusCode || 400;
+    res.status(status).json({
+      error: {
+        code: err.code || 'RETRY_FAILED',
         message: err.message,
       },
     });

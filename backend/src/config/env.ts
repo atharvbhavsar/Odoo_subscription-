@@ -11,5 +11,24 @@ export const env = {
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_12345',
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'rzp_test_mock_secret_67890',
+
+  // Email delivery configuration
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.mailtrap.io',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_FROM: process.env.SMTP_FROM || 'Brightloop Billing <billing@brightloop.io>',
+  EMAIL_ENABLED: process.env.EMAIL_ENABLED === 'true',
+
+  // Company details for invoices
+  COMPANY_NAME: process.env.COMPANY_NAME || 'Brightloop Software Inc.',
+  COMPANY_ADDRESS: process.env.COMPANY_ADDRESS || '100 Innovation Way, Suite 400, San Francisco, CA 94105',
+  COMPANY_TAX_ID: process.env.COMPANY_TAX_ID || 'US-EIN-94-1234567',
+  COMPANY_EMAIL: process.env.COMPANY_EMAIL || 'billing@brightloop.io',
+  COMPANY_PHONE: process.env.COMPANY_PHONE || '+1 (555) 019-2834',
+  COMPANY_WEBSITE: process.env.COMPANY_WEBSITE || 'https://brightloop.io',
+  PAYMENT_INSTRUCTIONS:
+    process.env.PAYMENT_INSTRUCTIONS ||
+    'Wire to Silicon Valley Bank | Routing: 121000358 | Account: 987654321, or pay securely online via Razorpay Customer Portal.',
 };
 
