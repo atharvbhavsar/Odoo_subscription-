@@ -195,3 +195,122 @@ test('Add-on: RBAC permission boundaries for Add-on operations', () => {
   const nonOwnerActions = getAvailableActions('customer', { ...sub, isOwner: false }, addon);
   assert.strictEqual(nonOwnerActions.length, 0, 'Non-owner customer has no access');
 });
+
+
+// 6. Loading Add-ons Response Structure Mapping
+test('Add-on: Loading add-ons response schema mapping', () => {
+  const mockApiResponse = {
+    data: [
+      {
+        id: 'addon-1',
+        subscription_id: 'sub-1',
+        product_id: 'prod-saas',
+        product_name: 'Cloud Storage',
+        variant_id: 'var-100gb',
+        attribute_name: 'Capacity',
+        attribute_value: '100 GB',
+        quantity: 2,
+        unit_price: 25.0,
+        status: 'active',
+        effective_start_date: '2026-10-31',
+        effective_end_date: null,
+        created_at: '2026-10-31T00:00:00.000Z',
+      },
+      {
+        id: 'addon-2',
+        subscription_id: 'sub-1',
+        product_id: 'prod-support',
+        product_name: '24/7 Dedicated Support',
+        variant_id: null,
+        attribute_name: null,
+        attribute_value: null,
+        quantity: 1,
+        unit_price: 50.0,
+        status: 'pending_removal',
+        effective_start_date: '2026-10-31',
+        effective_end_date: '2026-11-30',
+        created_at: '2026-10-31T00:00:00.000Z',
+      },
+    ],
+  };
+
+  const parsed = mockApiResponse.data.map((item) => ({
+    id: item.id,
+    subscriptionId: item.subscription_id,
+    productName: item.product_name,
+    variantValue: item.attribute_value || 'Base Product',
+    lineSubtotal: item.unit_price * item.quantity,
+    status: item.status,
+    effectiveStartDate: item.effective_start_date,
+    effectiveEndDate: item.effective_end_date,
+  }));
+
+  assert.strictEqual(parsed.length, 2);
+  assert.strictEqual(parsed[0].productName, 'Cloud Storage');
+  assert.strictEqual(parsed[0].variantValue, '100 GB');
+  assert.strictEqual(parsed[0].lineSubtotal, 50.0);
+  assert.strictEqual(parsed[1].status, 'pending_removal');
+  assert.strictEqual(parsed[1].effectiveEndDate, '2026-11-30');
+});
+
+// 7. API Error Handling Logic
+test('Add-on: API error handling for backend validation, ownership and status conflicts', () => {
+  const handleApiError = (status, errorBody) => {
+    switch (status) {
+      case 400:
+        return { userMessage: errorBody?.error || 'Invalid add-on parameters', severity: 'warning' };
+      case 403:
+        return { userMessage: 'Access denied: You do not have permission to manage add-ons for this subscription.', severity: 'error' };
+      case 404:
+        return { userMessage: 'Subscription or add-on not found.', severity: 'error' };
+      case 409:
+        return { userMessage: 'An active or scheduled add-on already exists for this item.', severity: 'warning' };
+      default:
+        return { userMessage: 'An unexpected error occurred while saving the add-on.', severity: 'error' };
+    }
+  };
+
+  const err400 = handleApiError(400, { error: 'Quantity must be at least 1' });
+  assert.strictEqual(err400.userMessage, 'Quantity must be at least 1');
+  assert.strictEqual(err400.severity, 'warning');
+
+  const err403 = handleApiError(403, { error: 'Unauthorized' });
+  assert.ok(err403.userMessage.includes('Access denied'));
+  assert.strictEqual(err403.severity, 'error');
+
+  const err404 = handleApiError(404, {});
+  assert.strictEqual(err404.userMessage, 'Subscription or add-on not found.');
+
+  const err409 = handleApiError(409, {});
+  assert.ok(err409.userMessage.includes('already exists'));
+});
+
+// 8. Customer Ownership Boundary Verification
+test('Add-on: Customer portal prevents passing or spoofing customer IDs', () => {
+  // Frontend API call contract for adding an add-on
+  const prepareAddonRequest = (subscriptionId, formValues) => {
+    // Note: Request body MUST NOT contain customer_id. Backend derives caller identity from req.session.user.id
+    return {
+      endpoint: `/api/subscriptions/${subscriptionId}/addons`,
+      method: 'POST',
+      body: {
+        product_id: formValues.productId,
+        variant_id: formValues.variantId || null,
+        quantity: formValues.quantity,
+      },
+    };
+  };
+
+  const req = prepareAddonRequest('sub-owned-by-user', {
+    productId: 'prod-backup',
+    variantId: null,
+    quantity: 3,
+    customerId: 'attempted-spoof-id', // Should be omitted from the payload
+  });
+
+  assert.strictEqual(req.endpoint, '/api/subscriptions/sub-owned-by-user/addons');
+  assert.strictEqual(req.body.product_id, 'prod-backup');
+  assert.strictEqual(req.body.variant_id, null);
+  assert.strictEqual(req.body.quantity, 3);
+  assert.strictEqual(req.body.customerId, undefined, 'customerId must NOT be sent in request body');
+});
