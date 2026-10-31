@@ -118,7 +118,15 @@ export class PostgresDatabase implements IDatabase {
   async exec(sql: string): Promise<void> {
     const { client, isTx } = await this.getClient();
     try {
-      await client.query(sql);
+      // Filter out PRAGMA and SQLite-specific statements for PostgreSQL
+      const pgSql = toPgSql(sql).replace(/\bPRAGMA\s+[^;]+;?/gi, '');
+      if (!pgSql.trim()) return;
+      await client.query(pgSql);
+    } catch (err: any) {
+      if (err.code === '42701' || err.code === '42P07') {
+        return; // Idempotent schema handling for PostgreSQL
+      }
+      throw err;
     } finally {
       if (!isTx) client.release();
     }

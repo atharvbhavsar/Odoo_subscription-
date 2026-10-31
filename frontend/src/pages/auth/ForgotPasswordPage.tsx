@@ -17,7 +17,7 @@ export const ForgotPasswordPage: React.FC = () => {
     try {
       const res = await authService.forgotPassword(email);
       setSubmitted(true);
-      if (res.devResetToken) {
+      if (res?.devResetToken) {
         setDevToken(res.devResetToken);
       }
     } catch (err: any) {

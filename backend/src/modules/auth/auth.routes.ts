@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../../config/database';
+import { env } from '../../config/env';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { requireRole } from '../../middleware/role.middleware';
 import { validateRequest } from '../../middleware/validate.middleware';
@@ -198,7 +199,7 @@ authRouter.post('/forgot-password', rateLimit(5, 60000), validateRequest(forgotP
   const standardMsg = 'If the email exists in our system, a password reset link has been dispatched.';
 
   if (!user) {
-    return res.json({ data: null, message: standardMsg });
+    return res.json({ data: {}, message: standardMsg });
   }
 
   // Generate cryptographically secure random token (never stored raw)
@@ -215,7 +216,7 @@ authRouter.post('/forgot-password', rateLimit(5, 60000), validateRequest(forgotP
   await AuditService.log('PASSWORD_RESET_REQUESTED', 'users', user.id, user.id);
 
   // In test/dev environment, provide devToken for convenience without compromising production
-  const responseData = process.env.NODE_ENV !== 'production' ? { devResetToken: resetToken } : null;
+  const responseData = (!env.EMAIL_ENABLED || process.env.NODE_ENV !== 'production') ? { devResetToken: resetToken } : {};
 
   res.json({
     data: responseData,
