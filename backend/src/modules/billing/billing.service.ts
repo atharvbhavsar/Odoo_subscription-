@@ -33,25 +33,45 @@ export interface BillingRunResult {
 }
 
 export class BillingService {
-  static advanceDate(dateStr: string, frequency: string): string {
-    const d = new Date(dateStr);
-    switch (frequency) {
-      case 'daily':
-        d.setDate(d.getDate() + 1);
-        break;
-      case 'weekly':
-        d.setDate(d.getDate() + 7);
-        break;
-      case 'monthly':
-        d.setMonth(d.getMonth() + 1);
-        break;
-      case 'yearly':
-        d.setFullYear(d.getFullYear() + 1);
-        break;
-      default:
-        d.setMonth(d.getMonth() + 1);
+  static advanceDate(dateStr: string, frequency: string, interval: number = 1): string {
+    const parts = dateStr.split('-').map(Number);
+    const year = parts[0];
+    const month = parts[1];
+    const day = parts[2];
+
+    switch (frequency.toLowerCase()) {
+      case 'daily': {
+        const d = new Date(Date.UTC(year, month - 1, day + interval));
+        return d.toISOString().split('T')[0];
+      }
+      case 'weekly': {
+        const d = new Date(Date.UTC(year, month - 1, day + (7 * interval)));
+        return d.toISOString().split('T')[0];
+      }
+      case 'monthly': {
+        const totalMonths = (month - 1) + interval;
+        const targetYear = year + Math.floor(totalMonths / 12);
+        const targetMonth = ((totalMonths % 12) + 12) % 12;
+        const maxDays = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+        const targetDay = Math.min(day, maxDays);
+        return new Date(Date.UTC(targetYear, targetMonth, targetDay)).toISOString().split('T')[0];
+      }
+      case 'yearly': {
+        const targetYear = year + interval;
+        const targetMonth = month - 1;
+        const maxDays = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+        const targetDay = Math.min(day, maxDays);
+        return new Date(Date.UTC(targetYear, targetMonth, targetDay)).toISOString().split('T')[0];
+      }
+      default: {
+        const totalMonths = (month - 1) + interval;
+        const targetYear = year + Math.floor(totalMonths / 12);
+        const targetMonth = ((totalMonths % 12) + 12) % 12;
+        const maxDays = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+        const targetDay = Math.min(day, maxDays);
+        return new Date(Date.UTC(targetYear, targetMonth, targetDay)).toISOString().split('T')[0];
+      }
     }
-    return d.toISOString().split('T')[0];
   }
 
   static async runBilling(targetDate?: string, triggerUserId?: string): Promise<BillingRunResult> {
