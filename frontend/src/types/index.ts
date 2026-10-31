@@ -196,3 +196,32 @@ export interface DashboardSummary {
   recentPayments: any[];
 }
 
+
+export interface QuotationTemplateLine {
+  id: string;
+  template_id: string;
+  product_id: string;
+  product_name?: string;
+  product_sales_price?: number;
+  product_type?: string;
+  variant_id?: string | null;
+  attribute_name?: string;
+  attribute_value?: string;
+  price_extra?: number;
+  quantity: number;
+}
+
+export interface QuotationTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  default_plan_id?: string | null;
+  default_plan_name?: string;
+  default_plan_price?: number;
+  default_plan_frequency?: string;
+  is_active: number;
+  line_count?: number;
+  created_at: string;
+  updated_at?: string;
+  lines?: QuotationTemplateLine[];
+}

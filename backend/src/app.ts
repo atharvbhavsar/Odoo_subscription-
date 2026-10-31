@@ -12,6 +12,7 @@ import { plansRouter } from './modules/plans/plans.routes';
 import { taxesRouter } from './modules/taxes/taxes.routes';
 import { discountsRouter } from './modules/discounts/discounts.routes';
 import { quotationsRouter } from './modules/quotations/quotations.routes';
+import { quotationTemplatesRouter } from './modules/quotations/quotation-templates.routes';
 import { subscriptionsRouter } from './modules/subscriptions/subscriptions.routes';
 import { billingRouter } from './modules/billing/billing.routes';
 import { invoicesRouter } from './modules/invoices/invoices.routes';
@@ -52,6 +53,7 @@ app.use('/api/plans', plansRouter);
 app.use('/api/taxes', taxesRouter);
 app.use('/api/discounts', discountsRouter);
 app.use('/api/quotations', quotationsRouter);
+app.use('/api/quotation-templates', quotationTemplatesRouter);
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/invoices', invoicesRouter);
@@ -60,4 +62,3 @@ app.use('/api/dashboard', dashboardRouter);
 
 // Central error handler
 app.use(errorHandler);
-

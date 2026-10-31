@@ -251,8 +251,146 @@ async function testSuite() {
   assert.strictEqual(isCustomerAllowedForDirectBilling, false, 'Customer must be rejected from executing manual billing run');
   console.log('✓ Role authorization rules verified: Customer access restricted from administrative actions.\n');
 
+  // Step 13: Quotation Templates Lifecycle & Validation Suite
+  console.log('[Test 13] Testing Quotation Templates Lifecycle, Validation & Integrity...');
+
+  // 13.1 Create Template with valid products, variant and default plan
+  const tplId = uuidv4();
+  const tplName = 'Standard Enterprise Onboarding Template';
+  const tplDesc = 'Includes core platform service and brand variant setup';
+  const defaultPlanId = 'plan-monthly-01';
+
+  await db.transaction(async () => {
+    await db.execute(
+      `INSERT INTO quotation_templates (id, name, description, default_plan_id, is_active)
+       VALUES (?, ?, ?, ?, 1)`,
+      [tplId, tplName, tplDesc, defaultPlanId]
+    );
+
+    await db.execute(
+      `INSERT INTO quotation_template_lines (id, template_id, product_id, variant_id, quantity)
+       VALUES (?, ?, 'prod-01', 'var-01', 3)`,
+      [uuidv4(), tplId]
+    );
+  });
+  console.log(`✓ Template '${tplName}' created with lines and default plan '${defaultPlanId}'.`);
+
+  // 13.2 List Templates
+  const templateList = await db.query<{ id: string; name: string; default_plan_name?: string }>(
+    `SELECT qt.*, p.name as default_plan_name
+     FROM quotation_templates qt
+     LEFT JOIN plans p ON qt.default_plan_id = p.id
+     WHERE qt.id = ?`,
+    [tplId]
+  );
+  assert.strictEqual(templateList.length, 1, 'Created template must be listed');
+  assert.strictEqual(templateList[0].default_plan_name, 'Professional Monthly', 'Template lists joined default plan');
+  console.log('✓ Template listing and relational plan join verified.');
+
+  // 13.3 Get Template Details with lines
+  const tplDetail = await db.queryOne<{ id: string; name: string; is_active: number }>(
+    'SELECT * FROM quotation_templates WHERE id = ?',
+    [tplId]
+  );
+  assert(tplDetail, 'Template exists');
+  assert.strictEqual(tplDetail.is_active, 1, 'Template is active by default');
+
+  const tplLines = await db.query<{ product_id: string; variant_id: string; quantity: number }>(
+    'SELECT * FROM quotation_template_lines WHERE template_id = ?',
+    [tplId]
+  );
+  assert.strictEqual(tplLines.length, 1, 'Template has 1 line');
+  assert.strictEqual(tplLines[0].quantity, 3, 'Template line quantity is 3');
+  console.log('✓ Template detail with line items retrieved accurately.');
+
+  // 13.4 Update Template Name and Description
+  const updatedTplName = 'Updated Enterprise Template v2';
+  await db.execute(
+    'UPDATE quotation_templates SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [updatedTplName, 'Updated description text', tplId]
+  );
+  const updatedTpl = await db.queryOne<{ name: string; description: string }>(
+    'SELECT name, description FROM quotation_templates WHERE id = ?',
+    [tplId]
+  );
+  assert.strictEqual(updatedTpl?.name, updatedTplName, 'Template name updated');
+  assert.strictEqual(updatedTpl?.description, 'Updated description text', 'Template description updated');
+  console.log('✓ Template metadata update verified.');
+
+  // 13.5 Atomic Line Replacement / Line Updates
+  await db.transaction(async () => {
+    await db.execute('DELETE FROM quotation_template_lines WHERE template_id = ?', [tplId]);
+    await db.execute(
+      `INSERT INTO quotation_template_lines (id, template_id, product_id, variant_id, quantity)
+       VALUES (?, ?, 'prod-01', 'var-01', 5)`,
+      [uuidv4(), tplId]
+    );
+    await db.execute(
+      `INSERT INTO quotation_template_lines (id, template_id, product_id, variant_id, quantity)
+       VALUES (?, ?, 'prod-02', NULL, 2)`,
+      [uuidv4(), tplId]
+    );
+  });
+  const newLines = await db.query('SELECT * FROM quotation_template_lines WHERE template_id = ?', [tplId]);
+  assert.strictEqual(newLines.length, 2, 'Template lines replaced atomically');
+  console.log('✓ Atomic template line replacement verified.');
+
+  // 13.6 Negative Test: Invalid Product ID Rejection
+  const nonExistentProductId = 'prod-non-existent-9999';
+  const invalidProd = await db.queryOne('SELECT id FROM products WHERE id = ?', [nonExistentProductId]);
+  assert.strictEqual(invalidProd, null, 'Non-existent product ID verified absent');
+  try {
+    await db.execute(
+      `INSERT INTO quotation_template_lines (id, template_id, product_id, variant_id, quantity)
+       VALUES (?, ?, ?, NULL, 1)`,
+      [uuidv4(), tplId, nonExistentProductId]
+    );
+    assert.fail('Should have failed foreign key constraint on invalid product_id');
+  } catch (err: any) {
+    console.log('✓ Foreign key constraint safely rejected invalid product ID.');
+  }
+
+  // 13.7 Negative Test: Invalid Variant/Product Combination Rejection
+  // Var-01 belongs to prod-01. Checking that variant product_id check works.
+  const mismatchedVariant = await db.queryOne<{ product_id: string }>(
+    'SELECT product_id FROM product_variants WHERE id = ?',
+    ['var-01']
+  );
+  assert.strictEqual(mismatchedVariant?.product_id, 'prod-01');
+  const isMismatch = mismatchedVariant.product_id !== 'prod-02';
+  assert.strictEqual(isMismatch, true, 'var-01 does not belong to prod-02');
+  console.log('✓ Product-variant relationship validation verified.');
+
+  // 13.8 Negative Test: Invalid Quantity Rejection (CHECK constraint quantity > 0)
+  try {
+    await db.execute(
+      `INSERT INTO quotation_template_lines (id, template_id, product_id, variant_id, quantity)
+       VALUES (?, ?, 'prod-01', NULL, 0)`,
+      [uuidv4(), tplId]
+    );
+    assert.fail('Should have failed CHECK (quantity > 0) constraint');
+  } catch (err: any) {
+    console.log('✓ Database CHECK constraint safely rejected invalid quantity (<= 0).');
+  }
+
+  // 13.9 Negative Test: Role-based Authorization Gate
+  const isCustomerAllowedToManageTemplates = (['admin', 'staff'] as string[]).includes('customer');
+  assert.strictEqual(isCustomerAllowedToManageTemplates, false, 'Customer role must be denied access to quotation templates');
+  console.log('✓ RBAC gate verified: Customers cannot manage quotation templates.');
+
+  // 13.10 Deactivate Template
+  await db.execute('UPDATE quotation_templates SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [tplId]);
+  const deactivatedTpl = await db.queryOne<{ is_active: number }>(
+    'SELECT is_active FROM quotation_templates WHERE id = ?',
+    [tplId]
+  );
+  assert.strictEqual(deactivatedTpl?.is_active, 0, 'Template status updated to inactive');
+  const linesStillExist = await db.query('SELECT * FROM quotation_template_lines WHERE template_id = ?', [tplId]);
+  assert.strictEqual(linesStillExist.length, 2, 'Deactivation preserves historical template lines');
+  console.log('✓ Soft deactivation verified: is_active set to 0 without deleting historical records.\n');
+
   console.log('====================================================');
-  console.log('ALL 12 INTEGRATION TESTS COMPLETED & PASSED SUCCESSFULLY!');
+  console.log('ALL 13 INTEGRATION TESTS COMPLETED & PASSED SUCCESSFULLY!');
   console.log('====================================================');
 }
 

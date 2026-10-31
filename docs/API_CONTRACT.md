@@ -287,6 +287,76 @@ Every response returned by the backend uses a standardized envelope structure.
 
 ---
 
+### 3.5.1 Quotation Templates (`/api/quotation-templates`)
+**Authorization:** Admin or Staff (`requireRole(['admin', 'staff'])`). Customers receive `403 FORBIDDEN`.
+
+#### `GET /api/quotation-templates`
+- **Access:** Admin/Staff
+- **Query Parameters:** `include_inactive=true` (optional, default: false)
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "tpl-uuid",
+        "name": "Standard Enterprise Setup",
+        "description": "Pre-configured SaaS bundle",
+        "default_plan_id": "plan-monthly-01",
+        "default_plan_name": "Professional Monthly",
+        "default_plan_price": 499.00,
+        "default_plan_frequency": "monthly",
+        "is_active": 1,
+        "line_count": 2,
+        "created_at": "2026-10-31T09:00:00.000Z"
+      }
+    ],
+    "message": "Quotation templates retrieved successfully"
+  }
+  ```
+
+#### `GET /api/quotation-templates/:id`
+- **Access:** Admin/Staff
+- **Response (`200 OK`):** Detailed template record including joined lines (`product_name`, `variant_value`, `price_extra`, `quantity`).
+- **Errors:** `404 NOT_FOUND`
+
+#### `POST /api/quotation-templates`
+- **Access:** Admin/Staff
+- **Request:**
+  ```json
+  {
+    "name": "Standard Enterprise Setup",
+    "description": "Pre-configured SaaS bundle",
+    "default_plan_id": "plan-monthly-01",
+    "lines": [
+      {
+        "product_id": "prod-01",
+        "variant_id": "var-01",
+        "quantity": 2
+      }
+    ]
+  }
+  ```
+- **Validation Rules & Errors:**
+  - Name is required (`VALIDATION_ERROR`).
+  - `default_plan_id` must exist and be active (`INVALID_PLAN` / `INACTIVE_PLAN`).
+  - `product_id` must exist and be active (`INVALID_PRODUCT` / `INACTIVE_PRODUCT`).
+  - `variant_id` must belong to the specified product (`INVALID_VARIANT_COMBINATION`).
+  - `quantity` must be integer > 0 (`VALIDATION_ERROR`).
+- **Response (`201 Created`):** Created template and line items.
+
+#### `PATCH /api/quotation-templates/:id`
+- **Access:** Admin/Staff
+- **Request:** Subset of `{ name, description, default_plan_id, is_active, lines }`.
+- **Behavior:** Safely updates metadata and replaces lines inside a database transaction.
+- **Response (`200 OK`):** Updated template record with refreshed lines.
+
+#### `PATCH /api/quotation-templates/:id/deactivate`
+- **Access:** Admin/Staff
+- **Behavior:** Soft deactivation (`is_active = 0`), preserving lines and template for historical records.
+- **Response (`200 OK`):** `{ "data": { "id": "tpl-uuid", "is_active": 0 }, "message": "Quotation template deactivated successfully" }`
+
+---
+
 ### 3.6 Subscriptions (`/api/subscriptions`)
 
 #### Fields Needed by Billing Engine:

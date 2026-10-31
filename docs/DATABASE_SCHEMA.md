@@ -13,9 +13,9 @@ users ──< customer_profiles ──< quotations ──< quotation_lines
   │                                  │
   ├──< password_reset_tokens         └──> subscriptions ──< subscription_lines
   │                                            │
-  └──< audit_logs                              └──> invoices ──< invoice_lines
-                                                       │
-                                                       └──< payments
+  ├──< audit_logs                              └──> invoices ──< invoice_lines
+  │                                                     │
+  └──< quotation_templates ──< quotation_template_lines └──< payments
 ```
 
 ---
@@ -87,13 +87,13 @@ Recurring billing cadences and lifecycle permissions.
 | `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Plan identifier |
 | `name` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Plan name (e.g. Professional Monthly) |
 | `billing_frequency`| `TEXT` | `CHECK (billing_frequency IN ('daily', 'weekly', 'monthly', 'yearly'))` | Cadence |
-| `price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Base plan subscription fee |
-| `min_qty` | `INTEGER` | `NOT NULL DEFAULT 1` | Minimum seat/license requirement |
-| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active plan status |
-| `can_pause` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Whether customer can pause contract |
-| `can_renew` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Whether plan auto-renews |
-| `can_close_early` | `INTEGER` / `BOOLEAN`| `DEFAULT 1` | Whether customer can close early |
-| `auto_close` | `INTEGER` / `BOOLEAN` | `DEFAULT 0` | Auto-closes on period end if true |
+| `price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00` | Base recurring fee |
+| `min_qty` | `INTEGER` | `NOT NULL DEFAULT 1` | Minimum seat quantity |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Available for new subscriptions |
+| `can_pause` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Policy: permits user pause |
+| `can_renew` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Policy: permits renewal |
+| `can_close_early` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Policy: permits cancellation before term |
+| `auto_close` | `INTEGER` / `BOOLEAN` | `DEFAULT 0` | Policy: close automatically after term |
 | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Created timestamp |
 
 ### 2.7 `taxes`
@@ -170,9 +170,32 @@ Audit trail of recorded customer settlements.
 System-wide audit log for compliance.
 - `id`, `user_id`, `action`, `entity`, `entity_id`, `payload` (JSONB / TEXT), `created_at`.
 
+### 2.14 `quotation_templates`
+Pre-configured line item bundles for fast quotation drafting.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Template identifier |
+| `name` | `TEXT` / `VARCHAR(255)` | `NOT NULL` | Template name (e.g. Standard Enterprise Setup) |
+| `description` | `TEXT` | `NULLABLE` | Template description |
+| `default_plan_id` | `TEXT` / `UUID` | `NULLABLE REFERENCES plans(id) ON DELETE SET NULL` | Suggested default subscription plan |
+| `is_active` | `INTEGER` / `BOOLEAN` | `DEFAULT 1` | Active status |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last update timestamp |
+
+### 2.15 `quotation_template_lines`
+Specific product and variant line items bundled within a quotation template.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Line item identifier |
+| `template_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES quotation_templates(id) ON DELETE CASCADE` | Parent template |
+| `product_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES products(id)` | Associated product |
+| `variant_id` | `TEXT` / `UUID` | `NULLABLE REFERENCES product_variants(id)` | Associated product variant |
+| `quantity` | `INTEGER` | `NOT NULL DEFAULT 1 CHECK (quantity > 0)` | Default item quantity |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
+
 ---
 
 ## 3. Migration Policy
-1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`).
+1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`, `002_quotation_templates.sql`).
 2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
 3. Zero destructive changes to historical invoices or payment records.
