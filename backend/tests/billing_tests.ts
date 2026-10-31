@@ -229,3 +229,4 @@ runBillingTests()
     console.error('Billing test failed:', err);
     process.exit(1);
   });
+
