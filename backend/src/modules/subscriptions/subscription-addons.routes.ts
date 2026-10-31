@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateRequest } from '../../middleware/validate.middleware';
@@ -18,18 +18,22 @@ const updateQuantitySchema = z.object({
 });
 
 // 1. GET /api/subscriptions/:id/addons - Retrieve add-ons belonging to a subscription
-subscriptionAddonsRouter.get('/', requireAuth, async (req: Request, res: Response) => {
-  const subscriptionId = req.params.id;
-  const addons = await SubscriptionAddonService.getAddons(subscriptionId, {
-    id: req.user!.id,
-    role: req.user!.role,
-    customerId: req.user!.customerId,
-  });
+subscriptionAddonsRouter.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const subscriptionId = req.params.id;
+    const addons = await SubscriptionAddonService.getAddons(subscriptionId, {
+      id: req.user!.id,
+      role: req.user!.role,
+      customerId: req.user!.customerId,
+    });
 
-  res.json({
-    data: addons,
-    message: 'Subscription add-ons retrieved successfully',
-  });
+    res.json({
+      data: addons,
+      message: 'Subscription add-ons retrieved successfully',
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // 2. POST /api/subscriptions/:id/addons - Request or schedule an add-on addition
@@ -37,29 +41,33 @@ subscriptionAddonsRouter.post(
   '/',
   requireAuth,
   validateRequest(addAddonSchema),
-  async (req: Request, res: Response) => {
-    const subscriptionId = req.params.id;
-    const { product_id, variant_id, quantity, unit_price } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const subscriptionId = req.params.id;
+      const { product_id, variant_id, quantity, unit_price } = req.body;
 
-    const addon = await SubscriptionAddonService.addAddon(
-      subscriptionId,
-      {
-        productId: product_id,
-        variantId: variant_id,
-        quantity,
-        unitPrice: unit_price,
-      },
-      {
-        id: req.user!.id,
-        role: req.user!.role,
-        customerId: req.user!.customerId,
-      }
-    );
+      const addon = await SubscriptionAddonService.addAddon(
+        subscriptionId,
+        {
+          productId: product_id,
+          variantId: variant_id,
+          quantity,
+          unitPrice: unit_price,
+        },
+        {
+          id: req.user!.id,
+          role: req.user!.role,
+          customerId: req.user!.customerId,
+        }
+      );
 
-    res.status(201).json({
-      data: addon,
-      message: 'Subscription add-on scheduled successfully for next billing period',
-    });
+      res.status(201).json({
+        data: addon,
+        message: 'Subscription add-on scheduled successfully for next billing period',
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
@@ -68,25 +76,29 @@ subscriptionAddonsRouter.patch(
   '/:addonId',
   requireAuth,
   validateRequest(updateQuantitySchema),
-  async (req: Request, res: Response) => {
-    const { id: subscriptionId, addonId } = req.params;
-    const { quantity } = req.body;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: subscriptionId, addonId } = req.params;
+      const { quantity } = req.body;
 
-    const updated = await SubscriptionAddonService.updateQuantity(
-      subscriptionId,
-      addonId,
-      quantity,
-      {
-        id: req.user!.id,
-        role: req.user!.role,
-        customerId: req.user!.customerId,
-      }
-    );
+      const updated = await SubscriptionAddonService.updateQuantity(
+        subscriptionId,
+        addonId,
+        quantity,
+        {
+          id: req.user!.id,
+          role: req.user!.role,
+          customerId: req.user!.customerId,
+        }
+      );
 
-    res.json({
-      data: updated,
-      message: 'Subscription add-on quantity updated successfully',
-    });
+      res.json({
+        data: updated,
+        message: 'Subscription add-on quantity updated successfully',
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
@@ -94,23 +106,26 @@ subscriptionAddonsRouter.patch(
 subscriptionAddonsRouter.patch(
   '/:addonId/remove',
   requireAuth,
-  async (req: Request, res: Response) => {
-    const { id: subscriptionId, addonId } = req.params;
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: subscriptionId, addonId } = req.params;
 
-    const removed = await SubscriptionAddonService.scheduleRemoval(
-      subscriptionId,
-      addonId,
-      {
-        id: req.user!.id,
-        role: req.user!.role,
-        customerId: req.user!.customerId,
-      }
-    );
+      const removed = await SubscriptionAddonService.scheduleRemoval(
+        subscriptionId,
+        addonId,
+        {
+          id: req.user!.id,
+          role: req.user!.role,
+          customerId: req.user!.customerId,
+        }
+      );
 
-    res.json({
-      data: removed,
-      message: 'Subscription add-on scheduled for removal on next billing period',
-    });
+      res.json({
+        data: removed,
+        message: 'Subscription add-on scheduled for removal on next billing period',
+      });
+    } catch (err) {
+      next(err);
+    }
   }
 );
-

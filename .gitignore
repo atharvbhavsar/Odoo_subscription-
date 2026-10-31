@@ -26,3 +26,6 @@ docs/Subscription_Management_System.pdf
 .jetro/
 .windsurfrules
 .mcp.json
+
+.vercel
+.env*

@@ -93,12 +93,13 @@ subscriptionsRouter.get('/:id', requireAuth, async (req: Request, res: Response)
     end_date: string | null;
     [key: string]: any;
   }>(
-    `SELECT s.*, c.name as customer_name, c.company_name, c.email as customer_email,
+    `SELECT s.*, c.name as customer_name, c.company_name, u.email as customer_email,
             p.name as plan_name, p.billing_interval, p.can_pause, p.can_renew, p.can_close_early, p.is_active as plan_is_active,
             d.code as discount_code, d.type as discount_type, d.value as discount_value,
             t.name as tax_name, t.rate_percentage as tax_rate
      FROM subscriptions s
      JOIN customer_profiles c ON s.customer_id = c.id
+     LEFT JOIN users u ON c.user_id = u.id
      JOIN plans p ON s.plan_id = p.id
      LEFT JOIN discounts d ON s.discount_id = d.id
      LEFT JOIN taxes t ON s.tax_id = t.id
@@ -292,7 +293,7 @@ subscriptionsRouter.post('/:id/renew', requireAuth, async (req: Request, res: Re
   const newEndDate = BillingService.advanceDate(baseDate, sub.billing_frequency, sub.billing_interval || 1);
 
   // If subscription was expired, reactivate next billing date to today
-  const effectiveNextBilling = sub.status === 'expired' || sub.next_billing_date < today ? today : sub.next_billing_date;
+  const effectiveNextBilling = today;
 
   await db.execute(
     "UPDATE subscriptions SET status = 'active', end_date = ?, next_billing_date = ?, renewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -340,6 +341,10 @@ subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Re
 
   if (sub.status === 'closed') {
     return res.status(400).json({ error: { code: 'ALREADY_CLOSED', message: 'Subscription is already closed' } });
+  }
+
+  if (sub.status === 'expired') {
+    return res.status(400).json({ error: { code: 'ALREADY_EXPIRED', message: 'Subscription is already expired' } });
   }
 
   await db.transaction(async () => {

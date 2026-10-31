@@ -4,7 +4,18 @@ import { db } from './database';
 
 export async function runSeeds() {
   console.log('Running database seeds...');
-  const seedsDir = path.resolve(__dirname, '../../../database/seeds');
+  const candidateDirs = [
+    path.resolve(__dirname, '../../database/seeds'),
+    path.resolve(__dirname, '../../../database/seeds'),
+    path.resolve(process.cwd(), 'database/seeds'),
+    path.resolve(process.cwd(), '../database/seeds'),
+  ];
+  const seedsDir = candidateDirs.find(d => fs.existsSync(d));
+  if (!seedsDir) {
+    console.warn('No seeds directory found in candidates:', candidateDirs);
+    return;
+  }
+
   const files = fs.readdirSync(seedsDir).filter(f => f.endsWith('.sql')).sort();
 
   for (const file of files) {
@@ -23,4 +34,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-

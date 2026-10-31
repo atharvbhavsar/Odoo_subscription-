@@ -1,4 +1,4 @@
-import { app } from './app';
+import app from './app';
 import { env } from './config/env';
 import { runMigrations } from './config/migrate';
 import { runSeeds } from './config/seed';
@@ -26,3 +26,5 @@ if (require.main === module) {
   bootstrap();
 }
 
+export { app };
+export default app;

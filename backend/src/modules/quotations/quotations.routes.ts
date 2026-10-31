@@ -92,13 +92,14 @@ quotationsRouter.get('/:id', requireAuth, async (req: Request, res: Response) =>
     subscription_id?: string | null;
     [key: string]: any;
   }>(
-    `SELECT q.*, c.name as customer_name, c.company_name, c.email as customer_email,
+    `SELECT q.*, c.name as customer_name, c.company_name, u.email as customer_email,
             p.name as plan_name, p.billing_frequency,
             d.code as discount_code, d.type as discount_type, d.value as discount_value,
             t.name as tax_name, t.rate_percentage as tax_rate,
             s.subscription_number
      FROM quotations q
      JOIN customer_profiles c ON q.customer_id = c.id
+     LEFT JOIN users u ON c.user_id = u.id
      JOIN plans p ON q.plan_id = p.id
      LEFT JOIN discounts d ON q.discount_id = d.id
      LEFT JOIN taxes t ON q.tax_id = t.id
