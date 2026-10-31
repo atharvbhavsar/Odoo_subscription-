@@ -101,46 +101,43 @@ async function runBillingTests() {
     [uuidv4(), sub4Id]
   );
 
-  // Run billing for today (Oct 31, 2026) -> should catch up Aug, Sep, Oct (3 periods)
-  const catchUpRun = await BillingService.runBilling('2026-10-31');
-  const missedInvoices = await db.query<{ period_start: string }>(
-    'SELECT period_start FROM invoices WHERE subscription_id = ? ORDER BY period_start ASC',
-    [sub4Id]
-  );
-  assert(missedInvoices.length >= 3, 'Catch-up generated invoices for all missed periods');
-  console.log(`✓ Missed-period catch-up generated ${missedInvoices.length} invoices covering all past due cycles.`);
+  const missedRun = await BillingService.runBilling(today);
+  const sub4Invoices = await db.query<{ period_start: string }>('SELECT period_start FROM invoices WHERE subscription_id = ? ORDER BY period_start ASC', [sub4Id]);
+  // From Aug 1, 2026 to Oct 31, 2026 covers: Aug 1, Sept 1, Oct 1 (3 invoices)
+  assert(sub4Invoices.length >= 3, `Expected at least 3 catch-up invoices, got ${sub4Invoices.length}`);
+  console.log(`✓ Missed-period catch-up generated ${sub4Invoices.length} invoices covering all past due cycles.`);
 
-  // 5. Expiry Policy Handling
+  // 5. Expiry Policy Enforcement
   console.log('[Billing Test 5] Subscription Expiry Policy...');
   const sub5Id = uuidv4();
   const sub5Num = `SUB-EXP-${Date.now().toString().slice(-4)}`;
-  const expiredEndDate = '2026-09-01'; // Expired last month
+  // Past end_date
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, end_date, billing_frequency, subtotal, total_amount)
-     VALUES (?, ?, ?, 'plan-monthly-01', 'active', '2026-01-01', '2026-10-01', ?, 'monthly', 100.00, 100.00)`,
-    [sub5Id, sub5Num, customerId, expiredEndDate]
+     VALUES (?, ?, ?, 'plan-monthly-01', 'active', '2026-01-01', '2026-10-31', '2026-09-01', 'monthly', 100.00, 100.00)`,
+    [sub5Id, sub5Num, customerId]
   );
 
   await BillingService.runBilling(today);
-  const expiredSub = await db.queryOne<{ status: string }>('SELECT status FROM subscriptions WHERE id = ?', [sub5Id]);
-  assert.strictEqual(expiredSub?.status, 'expired', 'Subscription status marked expired');
-  const expInvoices = await db.query('SELECT id FROM invoices WHERE subscription_id = ? AND period_start >= ?', [sub5Id, today]);
-  assert.strictEqual(expInvoices.length, 0, 'No invoices generated past expiration date');
+  const sub5 = await db.queryOne<{ status: string }>('SELECT status FROM subscriptions WHERE id = ?', [sub5Id]);
+  assert.strictEqual(sub5?.status, 'expired', 'Subscription status transitioned to expired');
+  const expInvoices = await db.query('SELECT id FROM invoices WHERE subscription_id = ?', [sub5Id]);
+  assert.strictEqual(expInvoices.length, 0, '0 invoices generated for expired subscription');
   console.log('✓ Expiry verified: Expired subscription transitioned to expired and excluded from future billing.');
 
-  // 6. Pause Policy Handling
+  // 6. Pause Policy Enforcement
   console.log('[Billing Test 6] Subscription Pause Policy...');
   const sub6Id = uuidv4();
   const sub6Num = `SUB-PAUSED-${Date.now().toString().slice(-4)}`;
   await db.execute(
     `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, total_amount)
-     VALUES (?, ?, ?, 'plan-monthly-01', 'paused', '2026-01-01', ?, 'monthly', 100.00, 100.00)`,
-    [sub6Id, sub6Num, customerId, today]
+     VALUES (?, ?, ?, 'plan-monthly-01', 'paused', '2026-10-01', '2026-10-31', 'monthly', 100.00, 100.00)`,
+    [sub6Id, sub6Num, customerId]
   );
 
   const pauseRun = await BillingService.runBilling(today);
-  const pauseReason = pauseRun.skippedReasons.find((r) => r.subscriptionId === sub6Id);
-  assert(pauseReason, 'Paused subscription recorded in skipped reasons');
+  const pausedSubRecord = pauseRun.skippedReasons.find((s) => s.subscriptionId === sub6Id);
+  assert(pausedSubRecord, 'Paused subscription recorded in skipped reasons');
   const pausedInvoices = await db.query('SELECT id FROM invoices WHERE subscription_id = ?', [sub6Id]);
   assert.strictEqual(pausedInvoices.length, 0, '0 invoices generated for paused subscription');
   console.log('✓ Pause verified: Paused subscription skipped with logged reason and 0 invoices created.');
@@ -218,8 +215,8 @@ async function runBillingTests() {
   assert(Array.isArray(payload.skippedReasons), 'Skipped reasons list recorded');
   console.log(`✓ Billing run audit log verified: Run took ${payload.durationMs}ms, generated ${payload.generated} invoices with full diagnostic logs.`);
 
-  // 10. Billing with Active Subscription Add-ons
-  console.log('[Billing Test 10] Billing with Active Subscription Add-ons (Lines snapshot and recalculated total)...');
+  // 10. Billing with Active, Pending Activation, and Removed Subscription Add-ons
+  console.log('[Billing Test 10] Billing with Subscription Add-ons (Active billed, Future & Removed excluded)...');
   const sub10Id = uuidv4();
   const sub10Num = `SUB-ADDON-${Date.now().toString().slice(-4)}`;
   const addonBillingDate = '2026-10-31';
@@ -234,12 +231,39 @@ async function runBillingTests() {
      VALUES (?, ?, 'prod-01', 1, 100.00, 100.00)`,
     [uuidv4(), sub10Id]
   );
-  // Add active add-on (2 x $50.00 = $100.00)
-  const addonId = uuidv4();
+
+  // Create products for future and removed add-ons
+  const prodFutureId = uuidv4();
+  const prodRemovedId = uuidv4();
+  await db.execute(
+    `INSERT INTO products (id, name, type, sales_price, cost_price, is_active)
+     VALUES (?, 'Future Add-on Module', 'service', 75.00, 10.00, 1),
+            (?, 'Retired Legacy Module', 'service', 40.00, 5.00, 1)`,
+    [prodFutureId, prodRemovedId]
+  );
+
+  // 1. Active add-on: 2 x $50.00 = $100.00 (MUST BE BILLED for 2026-10-31)
+  const activeAddonId = uuidv4();
   await db.execute(
     `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date)
      VALUES (?, ?, 'prod-02', 2, 50.00, 'active', ?)`,
-    [addonId, sub10Id, addonBillingDate]
+    [activeAddonId, sub10Id, addonBillingDate]
+  );
+
+  // 2. Future / not-yet-effective add-on: 1 x $75.00 (MUST NOT BE BILLED for 2026-10-31)
+  const futureAddonId = uuidv4();
+  await db.execute(
+    `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date)
+     VALUES (?, ?, ?, 1, 75.00, 'pending_activation', '2026-11-30')`,
+    [futureAddonId, sub10Id, prodFutureId]
+  );
+
+  // 3. Removed add-on: 1 x $40.00 (MUST NOT BE BILLED for 2026-10-31)
+  const removedAddonId = uuidv4();
+  await db.execute(
+    `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date, effective_end_date)
+     VALUES (?, ?, ?, 1, 40.00, 'removed', '2026-09-30', '2026-10-31')`,
+    [removedAddonId, sub10Id, prodRemovedId]
   );
 
   const run10 = await BillingService.runBilling(addonBillingDate);
@@ -249,20 +273,34 @@ async function runBillingTests() {
     [sub10Id]
   );
   assert(inv10, 'Invoice for add-on subscription exists');
-  assert.strictEqual(inv10.subtotal, 200.00, 'Invoice subtotal includes base line ($100) + add-on ($100)');
-  assert.strictEqual(inv10.total_amount, 200.00, 'Invoice total matches recalculated sum with add-on');
 
-  const inv10Lines = await db.query<{ description: string; quantity: number; unit_price: number; subtotal: number }>(
+  // Verify only base line ($100) + active add-on line ($100) are billed -> total $200.00
+  // If future ($75) or removed ($40) were included, total would be $275 or $315
+  assert.strictEqual(inv10.subtotal, 200.00, 'Invoice subtotal includes base line ($100) + active add-on ($100); excludes future ($75) and removed ($40)');
+  assert.strictEqual(inv10.total_amount, 200.00, 'Invoice total matches recalculated sum with active add-on only');
+
+  const inv10Lines = await db.query<{ product_id: string; description: string; quantity: number; unit_price: number; subtotal: number }>(
     'SELECT * FROM invoice_lines WHERE invoice_id = ? ORDER BY unit_price DESC',
     [inv10.id]
   );
-  assert.strictEqual(inv10Lines.length, 2, 'Contains 2 lines (base line + add-on line)');
-  const addonLine = inv10Lines.find((l) => l.description.includes('(Add-on)'));
-  assert(addonLine, 'Add-on line exists with (Add-on) label in description');
-  assert.strictEqual(addonLine?.quantity, 2, 'Add-on line quantity matches');
-  assert.strictEqual(addonLine?.unit_price, 50.00, 'Add-on line unit price matches');
-  assert.strictEqual(addonLine?.subtotal, 100.00, 'Add-on line subtotal matches');
+  assert.strictEqual(inv10Lines.length, 2, 'Contains exactly 2 lines (base line + active add-on line)');
+
+  const activeAddonLine = inv10Lines.find((l) => l.product_id === 'prod-02');
+  assert(activeAddonLine, 'Active add-on line exists');
+  assert(activeAddonLine.description.includes('(Add-on)'), 'Active add-on line has (Add-on) label');
+  assert.strictEqual(activeAddonLine.quantity, 2, 'Active add-on quantity matches 2');
+  assert.strictEqual(activeAddonLine.unit_price, 50.00, 'Active add-on unit price matches $50.00');
+  assert.strictEqual(activeAddonLine.subtotal, 100.00, 'Active add-on subtotal matches $100.00');
+
+  // Verify future and removed add-ons are NOT present in invoice_lines
+  const futureAddonLine = inv10Lines.find((l) => l.product_id === prodFutureId);
+  assert.strictEqual(futureAddonLine, undefined, 'Future add-on is strictly excluded from period invoice');
+
+  const removedAddonLine = inv10Lines.find((l) => l.product_id === prodRemovedId);
+  assert.strictEqual(removedAddonLine, undefined, 'Removed add-on is strictly excluded from period invoice');
+
   console.log(`✓ Add-on billing verified: Invoice created with total $${inv10.total_amount} and ${inv10Lines.length} snapshot lines.`);
+  console.log('✓ Verified: Pending activation and removed add-ons are strictly excluded from the invoice.');
 
   console.log('\n====================================================');
   console.log('ALL RECURRING BILLING ENGINE TESTS PASSED! (10/10)');
@@ -275,4 +313,3 @@ runBillingTests()
     console.error('Billing test failed:', err);
     process.exit(1);
   });
-

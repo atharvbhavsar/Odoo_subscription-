@@ -4,6 +4,7 @@ import { runSeeds } from '../src/config/seed';
 import { db } from '../src/config/database';
 import { PricingService } from '../src/modules/discounts/pricing.service';
 import { BillingService } from '../src/modules/billing/billing.service';
+import { SubscriptionAddonService } from '../src/modules/subscriptions/subscription-addons.service';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -390,7 +391,106 @@ async function testSuite() {
   console.log('✓ Soft deactivation verified: is_active set to 0 without deleting historical records.\n');
 
   console.log('====================================================');
-  console.log('ALL 13 INTEGRATION TESTS COMPLETED & PASSED SUCCESSFULLY!');
+  // Step 14: Subscription Add-On Pricing Security & Billing Engine Integration
+  console.log('[Test 14] Testing Subscription Add-On Pricing Security & Billing Engine Integration...');
+  const sub14Id = uuidv4();
+  const sub14Num = `SUB-AUDIT-${Date.now().toString().slice(-4)}`;
+  const period14 = '2026-10-31';
+
+  // 14.1 Create test subscription with base line
+  await db.execute(
+    `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, total_amount)
+     VALUES (?, ?, ?, 'plan-monthly-01', 'active', ?, ?, 'monthly', 100.00, 100.00)`,
+    [sub14Id, sub14Num, customerProfileId, period14, period14]
+  );
+  await db.execute(
+    `INSERT INTO subscription_lines (id, subscription_id, product_id, quantity, unit_price, subtotal)
+     VALUES (?, ?, 'prod-01', 1, 100.00, 100.00)`,
+    [uuidv4(), sub14Id]
+  );
+
+  // 14.2 Pricing Security Verification: Attempt price manipulation as a customer
+  // Product 'prod-02' sales_price is $50.00. Customer maliciously attempts to submit unit_price $0.05
+  const manipulatedAddon = await SubscriptionAddonService.addAddon(
+    sub14Id,
+    {
+      productId: 'prod-02',
+      quantity: 2,
+      unitPrice: 0.05, // Attempted price spoof
+    },
+    {
+      id: customerUserId,
+      role: 'customer',
+      customerId: customerProfileId,
+    }
+  );
+  // Assert backend ignores customer's submitted price and calculates authoritative price ($50.00)
+  assert.strictEqual(manipulatedAddon.unit_price, 50.00, 'Backend correctly enforced authoritative price $50.00 and rejected customer price spoof ($0.05)');
+  console.log('✓ Pricing security verified: Customer price manipulation safely overridden by backend catalog price.');
+
+  // Set this addon to active for period14
+  await db.execute("UPDATE subscription_addons SET status = 'active', effective_start_date = ? WHERE id = ?", [period14, manipulatedAddon.id]);
+
+  // 14.3 Create a Future / Not-yet-effective add-on (effective 2026-11-30)
+  const prodFutureId = uuidv4();
+  const prodRemovedId = uuidv4();
+  await db.execute(
+    `INSERT INTO products (id, name, type, sales_price, cost_price, is_active)
+     VALUES (?, 'Future Add-on Module', 'service', 75.00, 10.00, 1),
+            (?, 'Retired Add-on Module', 'service', 40.00, 5.00, 1)`,
+    [prodFutureId, prodRemovedId]
+  );
+
+  const futureAddonId = uuidv4();
+  await db.execute(
+    `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date)
+     VALUES (?, ?, ?, 1, 75.00, 'pending_activation', '2026-11-30')`,
+    [futureAddonId, sub14Id, prodFutureId]
+  );
+
+  // 14.4 Create a Removed add-on (effective_end_date 2026-10-31, status 'removed')
+  const removedAddonId = uuidv4();
+  await db.execute(
+    `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date, effective_end_date)
+     VALUES (?, ?, ?, 1, 40.00, 'removed', '2026-09-30', '2026-10-31')`,
+    [removedAddonId, sub14Id, prodRemovedId]
+  );
+
+  // 14.5 Run billing for period14 ('2026-10-31')
+  const billingRun14 = await BillingService.runBilling(period14);
+  assert(billingRun14.invoicesGenerated >= 1, 'Billing run generated invoices');
+
+  const inv14 = await db.queryOne<{ id: string; subtotal: number; total_amount: number }>(
+    'SELECT * FROM invoices WHERE subscription_id = ?',
+    [sub14Id]
+  );
+  assert(inv14, 'Invoice exists for subscription with add-ons');
+
+  // Base line: 1 x $100 = $100
+  // Active add-on: 2 x $50 = $100
+  // Total = $200.00 (Excludes future $75 and removed $40)
+  assert.strictEqual(inv14.subtotal, 200.00, 'Invoice subtotal is exactly $200.00 (Base $100 + Active Addon $100)');
+  assert.strictEqual(inv14.total_amount, 200.00, 'Invoice total matches recalculated sum with add-ons');
+
+  const inv14Lines = await db.query<{ product_id: string; description: string; quantity: number; unit_price: number; subtotal: number }>(
+    'SELECT * FROM invoice_lines WHERE invoice_id = ? ORDER BY unit_price DESC',
+    [inv14.id]
+  );
+  assert.strictEqual(inv14Lines.length, 2, 'Invoice contains exactly 2 lines (base line + active add-on line)');
+
+  const billedAddon = inv14Lines.find((l) => l.product_id === 'prod-02');
+  assert(billedAddon, 'Billed add-on line found on invoice');
+  assert(billedAddon.description.includes('(Add-on)'), 'Add-on line description tagged with (Add-on)');
+  assert.strictEqual(billedAddon.quantity, 2, 'Add-on line quantity matches 2');
+  assert.strictEqual(billedAddon.unit_price, 50.00, 'Add-on line unit price matches $50.00');
+  assert.strictEqual(billedAddon.subtotal, 100.00, 'Add-on line subtotal matches $100.00');
+
+  // Verify future and removed add-ons are strictly excluded
+  assert.strictEqual(inv14Lines.find((l) => l.product_id === prodFutureId), undefined, 'Future add-on excluded from invoice lines');
+  assert.strictEqual(inv14Lines.find((l) => l.product_id === prodRemovedId), undefined, 'Removed add-on excluded from invoice lines');
+  console.log(`✓ Invoice snapshot verified: Total $${inv14.total_amount} with active add-on line, excluding future and removed add-ons.\n`);
+
+  console.log('ALL 14 INTEGRATION TESTS COMPLETED & PASSED SUCCESSFULLY!');
   console.log('====================================================');
 }
 
