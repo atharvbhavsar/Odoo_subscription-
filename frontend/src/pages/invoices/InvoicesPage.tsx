@@ -51,6 +51,10 @@ export const InvoicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
+    const interval = setInterval(() => {
+      fetchInvoices();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter, searchTerm]);
 
   // Confirm Draft Handler (Staff/Admin)

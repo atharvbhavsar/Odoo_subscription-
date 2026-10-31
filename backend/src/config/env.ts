@@ -6,8 +6,10 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 export const env = {
   PORT: parseInt(process.env.PORT || '5000', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',
-  DATABASE_URL: process.env.DATABASE_URL || '',
-  SESSION_SECRET: process.env.SESSION_SECRET || 'brightloop-session-secret-dev',
+  DATABASE_URL:
+    process.env.DATABASE_URL ||
+    'postgresql://postgres.lpqhxnacbvztrkdfzebk:BrightloopSecure2026!@aws-0-eu-north-1.pooler.supabase.com:6543/postgres',
+  SESSION_SECRET: process.env.SESSION_SECRET || 'brightloop-super-secret-session-key-dev-2026',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_TuQtACkOb0gXaC',
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'Jvca6aLus3ucpN5CpDVJqymU',
@@ -22,9 +24,13 @@ export const env = {
 
   // Supabase Configuration
   SUPABASE_URL: process.env.SUPABASE_URL || 'https://lpqhxnacbvztrkdfzebk.supabase.co',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || '',
+  SUPABASE_ANON_KEY:
+    process.env.SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwcWh4bmFjYnZ6dHJrZGZ6ZWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MjI2MTIsImV4cCI6MjEwODk5ODYxMn0.Wng-NvJ8SDyPnvAN4lS8s64sIF6indrxtJzm4dNpz20',
+  SUPABASE_SERVICE_ROLE_KEY:
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwcWh4bmFjYnZ6dHJrZGZ6ZWJrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzQyMjYxMiwiZXhwIjoyMTA4OTk4NjEyfQ.NOejM40_gep576OsamOsd-LSnFp_GpM_wMiJRJmWXuk',
+  SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_8kURIdf-62ec5EAUVFl6NQ_0yU5qNqP',
 
   // Company details for invoices
   COMPANY_NAME: process.env.COMPANY_NAME || 'Brightloop Software Inc.',
@@ -37,4 +43,3 @@ export const env = {
     process.env.PAYMENT_INSTRUCTIONS ||
     'Wire to Silicon Valley Bank | Routing: 121000358 | Account: 987654321, or pay securely online via Razorpay Customer Portal.',
 };
-

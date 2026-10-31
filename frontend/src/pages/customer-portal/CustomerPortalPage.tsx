@@ -133,6 +133,10 @@ export const CustomerPortalPage: React.FC = () => {
 
   useEffect(() => {
     loadCustomerData();
+    const interval = setInterval(() => {
+      loadCustomerData();
+    }, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Open Subscription Details Modal

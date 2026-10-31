@@ -62,6 +62,10 @@ export const TaxesPage: React.FC = () => {
 
   useEffect(() => {
     fetchTaxes();
+    const interval = setInterval(() => {
+      fetchTaxes();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter, searchQuery]);
 
   // Counts

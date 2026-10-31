@@ -115,6 +115,10 @@ export const QuotationsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(() => {
+      fetchData();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   // Handle search with slight debounce

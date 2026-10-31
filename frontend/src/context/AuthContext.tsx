@@ -16,6 +16,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     try {
+      const token = localStorage.getItem('brightloop_token');
+      if (!token) return null;
       const cached = localStorage.getItem('brightloop_user');
       return cached ? JSON.parse(cached) : null;
     } catch {
@@ -25,6 +27,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
 
   const refreshUser = async () => {
+    const token = localStorage.getItem('brightloop_token');
+    if (!token) {
+      setUser(null);
+      localStorage.removeItem('brightloop_user');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await authService.me();
       setUser(res.user);
@@ -33,10 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       localStorage.setItem('brightloop_user', JSON.stringify(res.user));
     } catch {
-      if (!localStorage.getItem('brightloop_token')) {
-        setUser(null);
-        localStorage.removeItem('brightloop_user');
-      }
+      setUser(null);
+      localStorage.removeItem('brightloop_token');
+      localStorage.removeItem('brightloop_user');
     } finally {
       setLoading(false);
     }
