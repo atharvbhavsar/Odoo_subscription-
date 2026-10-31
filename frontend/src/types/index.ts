@@ -258,3 +258,19 @@ export interface BillingRunResult {
   errors: Array<{ subscriptionId: string; error: string }>;
   invoices: Array<{ id: string; invoiceNumber: string; amount: number; periodStart: string; periodEnd: string }>;
 }
+
+export interface SubscriptionAddon {
+  id: string;
+  subscription_id: string;
+  product_id: string;
+  product_name?: string;
+  variant_id?: string | null;
+  attribute_name?: string | null;
+  attribute_value?: string | null;
+  quantity: number;
+  unit_price: number;
+  status: 'pending_activation' | 'active' | 'pending_removal' | 'removed';
+  effective_start_date: string;
+  effective_end_date?: string | null;
+  created_at: string;
+}

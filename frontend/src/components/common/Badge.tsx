@@ -16,11 +16,14 @@ export const Badge: React.FC<BadgeProps> = ({ status }) => {
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'partially_paid':
       case 'paused':
+      case 'pending_activation':
+      case 'pending_removal':
         return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'cancelled':
       case 'closed':
       case 'failed':
       case 'expired':
+      case 'removed':
         return 'bg-rose-100 text-rose-800 border-rose-200';
       case 'draft':
       default:
@@ -30,8 +33,7 @@ export const Badge: React.FC<BadgeProps> = ({ status }) => {
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getStyles()}`}>
-      {status.replace('_', ' ').toUpperCase()}
+      {status.replace(/_/g, ' ').toUpperCase()}
     </span>
   );
 };
-

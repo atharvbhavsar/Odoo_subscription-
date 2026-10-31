@@ -218,8 +218,54 @@ async function runBillingTests() {
   assert(Array.isArray(payload.skippedReasons), 'Skipped reasons list recorded');
   console.log(`✓ Billing run audit log verified: Run took ${payload.durationMs}ms, generated ${payload.generated} invoices with full diagnostic logs.`);
 
+  // 10. Billing with Active Subscription Add-ons
+  console.log('[Billing Test 10] Billing with Active Subscription Add-ons (Lines snapshot and recalculated total)...');
+  const sub10Id = uuidv4();
+  const sub10Num = `SUB-ADDON-${Date.now().toString().slice(-4)}`;
+  const addonBillingDate = '2026-10-31';
+
+  await db.execute(
+    `INSERT INTO subscriptions (id, subscription_number, customer_id, plan_id, status, start_date, next_billing_date, billing_frequency, subtotal, total_amount)
+     VALUES (?, ?, ?, 'plan-monthly-01', 'active', ?, ?, 'monthly', 100.00, 100.00)`,
+    [sub10Id, sub10Num, customerId, addonBillingDate, addonBillingDate]
+  );
+  await db.execute(
+    `INSERT INTO subscription_lines (id, subscription_id, product_id, quantity, unit_price, subtotal)
+     VALUES (?, ?, 'prod-01', 1, 100.00, 100.00)`,
+    [uuidv4(), sub10Id]
+  );
+  // Add active add-on (2 x $50.00 = $100.00)
+  const addonId = uuidv4();
+  await db.execute(
+    `INSERT INTO subscription_addons (id, subscription_id, product_id, quantity, unit_price, status, effective_start_date)
+     VALUES (?, ?, 'prod-02', 2, 50.00, 'active', ?)`,
+    [addonId, sub10Id, addonBillingDate]
+  );
+
+  const run10 = await BillingService.runBilling(addonBillingDate);
+  assert(run10.invoicesGenerated >= 1, 'Generates period invoice with add-on');
+  const inv10 = await db.queryOne<{ id: string; subtotal: number; total_amount: number }>(
+    'SELECT * FROM invoices WHERE subscription_id = ?',
+    [sub10Id]
+  );
+  assert(inv10, 'Invoice for add-on subscription exists');
+  assert.strictEqual(inv10.subtotal, 200.00, 'Invoice subtotal includes base line ($100) + add-on ($100)');
+  assert.strictEqual(inv10.total_amount, 200.00, 'Invoice total matches recalculated sum with add-on');
+
+  const inv10Lines = await db.query<{ description: string; quantity: number; unit_price: number; subtotal: number }>(
+    'SELECT * FROM invoice_lines WHERE invoice_id = ? ORDER BY unit_price DESC',
+    [inv10.id]
+  );
+  assert.strictEqual(inv10Lines.length, 2, 'Contains 2 lines (base line + add-on line)');
+  const addonLine = inv10Lines.find((l) => l.description.includes('(Add-on)'));
+  assert(addonLine, 'Add-on line exists with (Add-on) label in description');
+  assert.strictEqual(addonLine?.quantity, 2, 'Add-on line quantity matches');
+  assert.strictEqual(addonLine?.unit_price, 50.00, 'Add-on line unit price matches');
+  assert.strictEqual(addonLine?.subtotal, 100.00, 'Add-on line subtotal matches');
+  console.log(`✓ Add-on billing verified: Invoice created with total $${inv10.total_amount} and ${inv10Lines.length} snapshot lines.`);
+
   console.log('\n====================================================');
-  console.log('ALL RECURRING BILLING ENGINE TESTS PASSED! (9/9)');
+  console.log('ALL RECURRING BILLING ENGINE TESTS PASSED! (10/10)');
   console.log('====================================================');
 }
 

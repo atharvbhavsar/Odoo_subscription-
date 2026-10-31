@@ -19,3 +19,4 @@ export const billingService = {
     return apiRequest<any[]>('/billing/history');
   },
 };
+

@@ -3,12 +3,14 @@ import { subscriptionService } from '../../services/quotation.service';
 import { Subscription } from '../../types';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
-import { Repeat, Pause, Play, XCircle } from 'lucide-react';
+import { SubscriptionAddonsModal } from '../../components/subscriptions/SubscriptionAddonsModal';
+import { Repeat, Pause, Play, XCircle, Layers } from 'lucide-react';
 
 export const SubscriptionsPage: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedSubForAddons, setSelectedSubForAddons] = useState<Subscription | null>(null);
 
   const fetchSubscriptions = async () => {
     try {
@@ -101,12 +103,20 @@ export const SubscriptionsPage: React.FC = () => {
                   <td className="py-3 px-4 font-bold text-slate-900">${Number(s.total_amount).toFixed(2)}</td>
                   <td className="py-3 px-4"><Badge status={s.status} /></td>
                   <td className="py-3 px-4 text-right space-x-2">
+                    <button
+                      onClick={() => setSelectedSubForAddons(s)}
+                      title="Manage Add-ons"
+                      className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition inline-flex items-center space-x-1"
+                    >
+                      <Layers className="w-4 h-4" />
+                      <span className="text-xs font-semibold">Add-ons</span>
+                    </button>
                     {s.status === 'active' && Boolean(s.can_pause) && (
                       <button
                         onClick={() => handlePause(s.id)}
                         disabled={actionLoading}
                         title="Pause Subscription"
-                        className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                        className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition inline-flex items-center"
                       >
                         <Pause className="w-4 h-4" />
                       </button>
@@ -116,7 +126,7 @@ export const SubscriptionsPage: React.FC = () => {
                         onClick={() => handleResume(s.id)}
                         disabled={actionLoading}
                         title="Resume Subscription"
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition inline-flex items-center"
                       >
                         <Play className="w-4 h-4" />
                       </button>
@@ -126,7 +136,7 @@ export const SubscriptionsPage: React.FC = () => {
                         onClick={() => handleClose(s.id)}
                         disabled={actionLoading}
                         title="Close Subscription"
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition inline-flex items-center"
                       >
                         <XCircle className="w-4 h-4" />
                       </button>
@@ -144,7 +154,14 @@ export const SubscriptionsPage: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {selectedSubForAddons && (
+        <SubscriptionAddonsModal
+          subscription={selectedSubForAddons}
+          onClose={() => setSelectedSubForAddons(null)}
+          onUpdated={fetchSubscriptions}
+        />
+      )}
     </div>
   );
 };
-

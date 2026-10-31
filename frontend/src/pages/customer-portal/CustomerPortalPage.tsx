@@ -6,6 +6,7 @@ import { Subscription, Invoice } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
+import { SubscriptionAddonsModal } from '../../components/subscriptions/SubscriptionAddonsModal';
 import {
   Repeat,
   Receipt,
@@ -15,6 +16,7 @@ import {
   Play,
   XCircle,
   CheckCircle,
+  Layers,
 } from 'lucide-react';
 
 export const CustomerPortalPage: React.FC = () => {
@@ -24,6 +26,7 @@ export const CustomerPortalPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [paymentMsg, setPaymentMsg] = useState<string | null>(null);
+  const [selectedSubForAddons, setSelectedSubForAddons] = useState<Subscription | null>(null);
 
   const loadCustomerData = async () => {
     try {
@@ -158,6 +161,13 @@ export const CustomerPortalPage: React.FC = () => {
 
               {/* Permitted self-service lifecycle controls */}
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
+                <button
+                  onClick={() => setSelectedSubForAddons(s)}
+                  className="flex items-center space-x-1 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Add-ons</span>
+                </button>
                 {s.status === 'active' && Boolean(s.can_pause) && (
                   <button
                     onClick={() => handlePause(s.id)}
@@ -261,7 +271,14 @@ export const CustomerPortalPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {selectedSubForAddons && (
+        <SubscriptionAddonsModal
+          subscription={selectedSubForAddons}
+          onClose={() => setSelectedSubForAddons(null)}
+          onUpdated={loadCustomerData}
+        />
+      )}
     </div>
   );
 };
-

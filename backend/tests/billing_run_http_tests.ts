@@ -175,3 +175,4 @@ runBillingRunHttpTests()
     console.error('Billing Run HTTP test failed:', err);
     process.exit(1);
   });
+

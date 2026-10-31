@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config/database';
 import { AuditService } from '../audit/audit.service';
 import { InvoiceService } from '../invoices/invoices.service';
+import { SubscriptionAddonService } from '../subscriptions/subscription-addons.service';
 
 export interface SkippedSubscriptionRecord {
   subscriptionId: string;
@@ -65,6 +66,8 @@ export class BillingService {
       subscription_number: string;
       customer_id: string;
       plan_id: string;
+      discount_id: string | null;
+      tax_id: string | null;
       status: string;
       next_billing_date: string;
       start_date: string;
@@ -201,6 +204,57 @@ export class BillingService {
             const invoiceId = uuidv4();
             const invoiceNumber = await InvoiceService.generateInvoiceNumber();
 
+            // Fetch base subscription lines
+            const subLines = await db.query<{
+              product_id: string;
+              variant_id: string | null;
+              quantity: number;
+              unit_price: number;
+              subtotal: number;
+            }>('SELECT * FROM subscription_lines WHERE subscription_id = ?', [sub.id]);
+
+            // Query active add-ons for this period
+            const activeAddons = await SubscriptionAddonService.getActiveAddonsForPeriod(sub.id, periodStart);
+
+            let invoiceSubtotal = sub.subtotal;
+            let invoiceDiscount = sub.discount_amount;
+            let invoiceTax = sub.tax_amount;
+            let invoiceTotal = sub.total_amount;
+
+            if (activeAddons.length > 0) {
+              const baseSubtotal = subLines.reduce((acc, l) => acc + l.subtotal, 0);
+              const addonSubtotal = activeAddons.reduce(
+                (acc, a) => acc + Math.round((a.unit_price * a.quantity + Number.EPSILON) * 100) / 100,
+                0
+              );
+              invoiceSubtotal = Math.round((baseSubtotal + addonSubtotal + Number.EPSILON) * 100) / 100;
+
+              if (sub.discount_id) {
+                const discount = await db.queryOne<{ type: string; value: number }>(
+                  'SELECT type, value FROM discounts WHERE id = ?',
+                  [sub.discount_id]
+                );
+                if (discount && discount.type === 'percentage') {
+                  invoiceDiscount = Math.round(((invoiceSubtotal * discount.value) / 100 + Number.EPSILON) * 100) / 100;
+                } else if (discount) {
+                  invoiceDiscount = Math.round(Math.min(discount.value, invoiceSubtotal) * 100) / 100;
+                }
+              }
+
+              const discountedSubtotal = Math.max(0, invoiceSubtotal - invoiceDiscount);
+              if (sub.tax_id) {
+                const tax = await db.queryOne<{ rate_percentage: number }>(
+                  'SELECT rate_percentage FROM taxes WHERE id = ?',
+                  [sub.tax_id]
+                );
+                if (tax) {
+                  invoiceTax = Math.round(((discountedSubtotal * tax.rate_percentage) / 100 + Number.EPSILON) * 100) / 100;
+                }
+              }
+
+              invoiceTotal = Math.round((discountedSubtotal + invoiceTax + Number.EPSILON) * 100) / 100;
+            }
+
             // Create Invoice Snapshot
             await db.execute(
               `INSERT INTO invoices (
@@ -215,23 +269,15 @@ export class BillingService {
                 periodStart,
                 periodEnd,
                 dueDate,
-                sub.subtotal,
-                sub.discount_amount,
-                sub.tax_amount,
-                sub.total_amount,
-                sub.total_amount,
+                invoiceSubtotal,
+                invoiceDiscount,
+                invoiceTax,
+                invoiceTotal,
+                invoiceTotal,
               ]
             );
 
             // Copy Lines & Add-ons to invoice_lines snapshot
-            const subLines = await db.query<{
-              product_id: string;
-              variant_id: string | null;
-              quantity: number;
-              unit_price: number;
-              subtotal: number;
-            }>('SELECT * FROM subscription_lines WHERE subscription_id = ?', [sub.id]);
-
             for (const sl of subLines) {
               const prod = await db.queryOne<{ name: string }>('SELECT name FROM products WHERE id = ?', [sl.product_id]);
               let desc = prod ? prod.name : 'Subscription Item';
@@ -250,6 +296,22 @@ export class BillingService {
               );
             }
 
+            // Copy Add-on lines
+            for (const ao of activeAddons) {
+              let desc = `${ao.product_name || 'Add-on Item'}`;
+              if (ao.attribute_value) {
+                desc += ` (${ao.attribute_value})`;
+              }
+              desc += ' (Add-on)';
+
+              const addonLineSubtotal = Math.round((ao.unit_price * ao.quantity + Number.EPSILON) * 100) / 100;
+              await db.execute(
+                `INSERT INTO invoice_lines (id, invoice_id, product_id, variant_id, description, quantity, unit_price, subtotal)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), invoiceId, ao.product_id, ao.variant_id, desc, ao.quantity, ao.unit_price, addonLineSubtotal]
+              );
+            }
+
             // Atomically advance next_billing_date inside transaction
             if (currentSub.end_date && periodEnd >= currentSub.end_date) {
               await db.execute("UPDATE subscriptions SET next_billing_date = ?, status = 'expired' WHERE id = ?", [periodEnd, sub.id]);
@@ -258,7 +320,7 @@ export class BillingService {
             }
 
             result.invoicesGenerated++;
-            result.invoices.push({ id: invoiceId, invoiceNumber, amount: sub.total_amount, periodStart, periodEnd });
+            result.invoices.push({ id: invoiceId, invoiceNumber, amount: invoiceTotal, periodStart, periodEnd });
             currentBillingDate = periodEnd;
             periodProcessed = true;
           });

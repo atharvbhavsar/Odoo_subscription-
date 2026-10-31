@@ -98,7 +98,7 @@ export const subscriptionService = {
   async getSubscription(id: string) {
     return apiRequest<Subscription>(`/subscriptions/${id}`);
   },
-
+  
   async pause(id: string) {
     return apiRequest<any>(`/subscriptions/${id}/pause`, { method: 'POST' });
   },

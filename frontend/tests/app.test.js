@@ -71,3 +71,24 @@ test('Frontend Billing Run: Admin gating and report schema handling', () => {
   assert.strictEqual(mockReport.skippedCount, 7);
   assert.strictEqual(mockReport.errors.length, 0);
 });
+
+test('Frontend Subscription Add-ons: Status badge styles and line calculations', () => {
+  const getBadgeClass = (status) => {
+    switch (status.toLowerCase()) {
+      case 'active': return 'emerald';
+      case 'pending_activation':
+      case 'pending_removal': return 'amber';
+      case 'removed': return 'rose';
+      default: return 'slate';
+    }
+  };
+  assert.strictEqual(getBadgeClass('active'), 'emerald');
+  assert.strictEqual(getBadgeClass('pending_activation'), 'amber');
+  assert.strictEqual(getBadgeClass('pending_removal'), 'amber');
+  assert.strictEqual(getBadgeClass('removed'), 'rose');
+  const unitPrice = 50.0;
+  const quantity = 3;
+  const lineSubtotal = Math.round(unitPrice * quantity * 100) / 100;
+  assert.strictEqual(lineSubtotal, 150.0);
+  assert.strictEqual(lineSubtotal.toFixed(2), '150.00');
+});
