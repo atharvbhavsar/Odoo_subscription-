@@ -31,3 +31,4 @@ export function rateLimit(maxRequests: number = 20, windowMs: number = 60 * 1000
     next();
   };
 }
+
