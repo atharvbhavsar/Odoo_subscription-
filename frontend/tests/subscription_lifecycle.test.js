@@ -168,3 +168,4 @@ test('Subscription Lifecycle: Subscriptions page search and status tab filtering
   assert.strictEqual(filterSubscriptions(subscriptions, 'active', 'Enterprise').length, 0); // Enterprise is paused
   assert.strictEqual(filterSubscriptions(subscriptions, 'paused', 'Beta').length, 1);
 });
+
