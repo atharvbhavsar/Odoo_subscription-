@@ -12,6 +12,7 @@ import { PlansPage } from './pages/plans/PlansPage';
 import { TaxesPage } from './pages/taxes/TaxesPage';
 import { DiscountsPage } from './pages/discounts/DiscountsPage';
 import { QuotationsPage } from './pages/quotations/QuotationsPage';
+import { QuotationTemplatesPage } from './pages/quotations/QuotationTemplatesPage';
 import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { PaymentsHistoryPage } from './pages/payments/PaymentsHistoryPage';
@@ -41,6 +42,7 @@ export const App: React.FC = () => {
             <Route path="/taxes" element={<TaxesPage />} />
             <Route path="/discounts" element={<DiscountsPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />
+            <Route path="/quotation-templates" element={<QuotationTemplatesPage />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/payments" element={<PaymentsHistoryPage />} />

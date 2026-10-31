@@ -1,5 +1,58 @@
 import { apiRequest } from './api';
-import { Quotation, Subscription } from '../types';
+import { Quotation, Subscription, QuotationTemplate } from '../types';
+
+export const quotationTemplateService = {
+  async getTemplates(includeInactive: boolean = false) {
+    const query = includeInactive ? '?include_inactive=true' : '';
+    return apiRequest<QuotationTemplate[]>(`/quotation-templates${query}`);
+  },
+
+  async getTemplate(id: string) {
+    return apiRequest<QuotationTemplate>(`/quotation-templates/${id}`);
+  },
+
+  async createTemplate(data: {
+    name: string;
+    description?: string | null;
+    default_plan_id?: string | null;
+    lines: Array<{
+      product_id: string;
+      variant_id?: string | null;
+      quantity: number;
+    }>;
+  }) {
+    return apiRequest<QuotationTemplate>('/quotation-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateTemplate(
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      default_plan_id?: string | null;
+      is_active?: number;
+      lines?: Array<{
+        product_id: string;
+        variant_id?: string | null;
+        quantity: number;
+      }>;
+    }
+  ) {
+    return apiRequest<QuotationTemplate>(`/quotation-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deactivateTemplate(id: string) {
+    return apiRequest<QuotationTemplate>(`/quotation-templates/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+};
 
 export const quotationService = {
   async getQuotations() {
@@ -58,4 +111,3 @@ export const subscriptionService = {
     return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
   },
 };
-
