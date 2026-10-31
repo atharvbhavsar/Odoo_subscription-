@@ -13,9 +13,11 @@ users ──< customer_profiles ──< quotations ──< quotation_lines
   │                                  │
   ├──< password_reset_tokens         └──> subscriptions ──< subscription_lines
   │                                            │
-  ├──< audit_logs                              └──> invoices ──< invoice_lines
-  │                                                     │
-  └──< quotation_templates ──< quotation_template_lines └──< payments
+  ├──< audit_logs                              ├──> subscription_addons
+  │                                            │
+  └──< quotation_templates ──< quotation_template_lines └──> invoices ──< invoice_lines
+                                                                 │
+                                                                 └──< payments
 ```
 
 ---
@@ -193,13 +195,6 @@ Specific product and variant line items bundled within a quotation template.
 | `quantity` | `INTEGER` | `NOT NULL DEFAULT 1 CHECK (quantity > 0)` | Default item quantity |
 | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
 
----
-
-## 3. Migration Policy
-1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`, `002_quotation_templates.sql`).
-2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
-3. Zero destructive changes to historical invoices or payment records.
-
 ### 2.16 `subscription_addons`
 Supplementary recurring products/services attached to an active subscription.
 | Column | Type | Constraints | Description |
@@ -215,3 +210,10 @@ Supplementary recurring products/services attached to an active subscription.
 | `effective_end_date` | `DATE` / `TEXT` | `NULLABLE` | Billing date from which add-on removal takes effect |
 | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
 | `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last update timestamp |
+
+---
+
+## 3. Migration Policy
+1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`, `002_quotation_templates.sql`, `003_invoice_emails.sql`, `004_subscription_addons.sql`).
+2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
+3. Zero destructive changes to historical invoices or payment records.
