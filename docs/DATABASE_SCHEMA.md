@@ -214,6 +214,15 @@ Supplementary recurring products/services attached to an active subscription.
 ---
 
 ## 3. Migration Policy
-1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`, `002_quotation_templates.sql`, `003_invoice_emails.sql`, `004_subscription_addons.sql`).
+1. All changes must be written as a versioned script in `backend/database/`:
+   - `001_initial_schema.sql`: Core schema (users, customer profiles, products, variants, plans, subscriptions, invoices, payments, audit logs)
+   - `002_quotation_templates.sql`: Quotation template heads and line items
+   - `003_invoice_emails.sql`: Email tracking metadata on invoices
+   - `004_subscription_addons.sql`: Subscription add-on line items and lifecycle states
+   - `005_product_variants_active.sql`: Active/inactive flags on product variants
+   - `006_plan_improvements.sql`: Plan billing intervals and lifecycle policy rules
+   - `007_tax_discount_improvements.sql`: Tax and discount validity date ranges and usage limits
+   - `008_quotation_lifecycle_improvements.sql`: Quotation status transitions, expiration, and subscription linkage
+   - `009_subscription_lifecycle_improvements.sql`: Pause/resume/renew/close tracking and add-on termination rules
 2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
 3. Zero destructive changes to historical invoices or payment records.

@@ -468,6 +468,18 @@ Every response returned by the backend uses a standardized envelope structure.
 - **Request:** `{ "invoice_id": "inv-uuid", "amount": 614.24, "payment_method": "bank_transfer", "notes": "Wire confirmation #991" }`
 - **Behavior:** Updates invoice balance and status (`partially_paid` or `paid`).
 
+#### `POST /api/payments/record-failure`
+- **Access:** Admin/Staff
+- **Request:** `{ "invoice_id": "inv-uuid", "gateway_payment_id": "pay_failed_xyz", "amount": 1614.24 }`
+- **Behavior:**
+  1. Inserts a payment record with `status = 'failed'` and the attempted amount.
+  2. Does **not** update invoice balance or status — invoice remains unpaid.
+  3. Provides an audit trail of failed payment attempts without affecting financials.
+- **Response (201 Created):** `{ "message": "Payment failure recorded", "paymentId": "pay-uuid" }`
+- **Error Codes:**
+  - `INVOICE_NOT_FOUND` (404): Invoice does not exist.
+  - `FORBIDDEN` (403): Caller does not have access to this invoice.
+
 ---
 
 ### 3.10 Finance Dashboard (`/api/dashboard`)
