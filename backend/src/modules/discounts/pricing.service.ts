@@ -26,6 +26,11 @@ export interface PricingResult {
   totalAmount: number;
 }
 
+export interface PricingOptions {
+  evalDate?: string;
+  allowInactiveProducts?: boolean;
+}
+
 export class PricingService {
   static round(val: number): number {
     return Math.round((val + Number.EPSILON) * 100) / 100;
@@ -34,8 +39,13 @@ export class PricingService {
   static async calculatePricing(
     lineInputs: PricingLineInput[],
     discountId?: string | null,
-    taxId?: string | null
+    taxId?: string | null,
+    options?: PricingOptions | string
   ): Promise<PricingResult> {
+    const opts: PricingOptions = typeof options === 'string' ? { evalDate: options } : options || {};
+    const evalDate = opts.evalDate || new Date().toISOString().split('T')[0];
+    const allowInactive = opts.allowInactiveProducts ?? false;
+
     const lines: CalculatedLine[] = [];
     let subtotal = 0;
     let totalQuantity = 0;
@@ -50,7 +60,7 @@ export class PricingService {
         throw new Error(`Product with ID ${input.productId} not found`);
       }
 
-      if (product.is_active === 0) {
+      if (product.is_active === 0 && !allowInactive) {
         throw new Error(`Product '${product.name}' is inactive and cannot be selected for new transactions`);
       }
 
@@ -78,11 +88,13 @@ export class PricingService {
           throw new Error(`Variant '${variant.attribute_value}' does not belong to product '${product.name}'`);
         }
 
-        if (variant.is_active === 0) {
+        if (variant.is_active === 0 && !allowInactive) {
           throw new Error(`Variant '${variant.attribute_value}' is inactive and cannot be selected for new transactions`);
         }
 
-        unitPrice += variant.price_extra;
+        if (input.unitPrice === undefined) {
+          unitPrice += variant.price_extra;
+        }
         description += ` (${variant.attribute_name}: ${variant.attribute_value})`;
       }
 
@@ -123,8 +135,8 @@ export class PricingService {
       if (discount && discount.is_active) {
         const now = new Date().toISOString().split('T')[0];
         const withinDates =
-          (!discount.start_date || discount.start_date <= now) &&
-          (!discount.end_date || discount.end_date >= now);
+          (!discount.start_date || discount.start_date <= evalDate) &&
+          (!discount.end_date || discount.end_date >= evalDate);
         const withinUsage = !discount.max_uses || discount.used_count < discount.max_uses;
         const meetsPurchase = subtotal >= (discount.min_purchase_amount || 0);
         const meetsQuantity = totalQuantity >= (discount.min_quantity || 0);
@@ -166,8 +178,8 @@ export class PricingService {
       if (tax && tax.is_active) {
         const now = new Date().toISOString().split('T')[0];
         const withinTaxDates =
-          (!tax.start_date || tax.start_date <= now) &&
-          (!tax.end_date || tax.end_date >= now);
+          (!tax.start_date || tax.start_date <= evalDate) &&
+          (!tax.end_date || tax.end_date >= evalDate);
 
         if (withinTaxDates) {
           taxAmount = this.round((discountedSubtotal * tax.rate_percentage) / 100);

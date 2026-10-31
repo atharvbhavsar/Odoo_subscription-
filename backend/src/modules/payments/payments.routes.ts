@@ -212,3 +212,53 @@ paymentsRouter.post('/record-offline', requireAuth, requireRole(['admin', 'staff
   });
 });
 
+// Record Payment Failure (e.g. gateway error or failure callback, ensuring invoice remains unpaid)
+const paymentFailureSchema = z.object({
+  invoice_id: z.string().min(1),
+  gateway_order_id: z.string().optional(),
+  gateway_payment_id: z.string().optional(),
+  error_code: z.string().optional(),
+  error_description: z.string().optional(),
+});
+
+paymentsRouter.post('/record-failure', requireAuth, validateRequest(paymentFailureSchema), async (req: Request, res: Response) => {
+  const { invoice_id, gateway_order_id, gateway_payment_id, error_code, error_description } = req.body;
+
+  const invoice = await db.queryOne<{ id: string; customer_id: string; status: string; amount_due: number }>(
+    'SELECT id, customer_id, status, amount_due FROM invoices WHERE id = ?',
+    [invoice_id]
+  );
+
+  if (!invoice) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Invoice not found' } });
+  }
+
+  if (req.user?.role === 'customer' && req.user.customerId !== invoice.customer_id) {
+    return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Unauthorized' } });
+  }
+
+  const paymentId = uuidv4();
+  const failureReason = error_description || error_code || 'Payment attempt failed';
+
+  const attemptedAmount = invoice.amount_due > 0 ? invoice.amount_due : 1.00;
+  await db.execute(
+    `INSERT INTO payments (id, invoice_id, amount, payment_method, gateway_order_id, gateway_payment_id, status, notes, recorded_at)
+     VALUES (?, ?, ?, 'razorpay', ?, ?, 'failed', ?, datetime('now'))`,
+    [paymentId, invoice_id, attemptedAmount, gateway_order_id || null, gateway_payment_id || null, failureReason]
+  );
+
+  await AuditService.log('PAYMENT_FAILED_RECORDED', 'payments', paymentId, req.user?.id, {
+    invoiceId: invoice_id,
+    failureReason,
+  });
+
+  res.json({
+    data: {
+      payment_id: paymentId,
+      status: 'failed',
+      invoice_status: invoice.status,
+      amount_due: invoice.amount_due,
+    },
+    message: 'Payment failure recorded; invoice balance preserved',
+  });
+});
