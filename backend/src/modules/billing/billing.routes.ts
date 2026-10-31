@@ -6,22 +6,21 @@ import { db } from '../../config/database';
 
 export const billingRouter = Router();
 
-// Staff/Admin can trigger a manual billing run
-billingRouter.post('/run', requireAuth, requireRole(['admin', 'staff']), async (req: Request, res: Response) => {
-  const targetDate = req.body.targetDate; // optional override for testing/backdating
+// Admin-only manual billing run endpoint
+billingRouter.post('/run', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+  const targetDate = req.body.targetDate; // optional date override for testing/backdating
   const result = await BillingService.runBilling(targetDate, req.user?.id);
 
   res.json({
     data: result,
-    message: `Billing completed. Generated ${result.invoicesGenerated} invoices from ${result.subscriptionsChecked} subscriptions checked.`,
+    message: `Billing run ${result.runId} completed in ${result.durationMs}ms. Generated ${result.invoicesGenerated} invoices (${result.skippedCount} skipped, ${result.errors.length} errors).`,
   });
 });
 
-// View billing run audit logs
+// Admin/Staff view billing execution logs
 billingRouter.get('/history', requireAuth, requireRole(['admin', 'staff']), async (req: Request, res: Response) => {
   const logs = await db.query(
     "SELECT * FROM audit_logs WHERE action = 'BILLING_RUN_EXECUTED' ORDER BY created_at DESC LIMIT 20"
   );
-  res.json({ data: logs, message: 'Billing history retrieved' });
+  res.json({ data: logs, message: 'Billing execution history retrieved' });
 });
-

@@ -2,11 +2,23 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config/database';
 import { AuditService } from '../audit/audit.service';
 
+export interface SkippedSubscriptionRecord {
+  subscriptionId: string;
+  subscriptionNumber?: string;
+  reason: string;
+}
+
 export interface BillingRunResult {
+  runId: string;
+  startTime: string;
+  endTime: string;
+  durationMs: number;
   subscriptionsChecked: number;
   invoicesGenerated: number;
+  skippedCount: number;
+  skippedReasons: SkippedSubscriptionRecord[];
   errors: Array<{ subscriptionId: string; error: string }>;
-  invoices: Array<{ id: string; invoiceNumber: string; amount: number }>;
+  invoices: Array<{ id: string; invoiceNumber: string; amount: number; periodStart: string; periodEnd: string }>;
 }
 
 export class BillingService {
@@ -32,16 +44,20 @@ export class BillingService {
   }
 
   static async runBilling(targetDate?: string, triggerUserId?: string): Promise<BillingRunResult> {
-    const currentDate = targetDate || new Date().toISOString().split('T')[0];
+    const runId = uuidv4();
+    const startTimeDate = new Date();
+    const startTime = startTimeDate.toISOString();
+    const currentDate = targetDate || startTime.split('T')[0];
 
-    // Find all active subscriptions due for billing on or before currentDate
-    const dueSubscriptions = await db.query<{
+    // Find all subscriptions that might be eligible or need checking
+    const subscriptions = await db.query<{
       id: string;
       subscription_number: string;
       customer_id: string;
       plan_id: string;
       status: string;
       next_billing_date: string;
+      start_date: string;
       end_date: string | null;
       billing_frequency: string;
       subtotal: number;
@@ -50,128 +66,210 @@ export class BillingService {
       total_amount: number;
     }>(
       `SELECT * FROM subscriptions 
-       WHERE status = 'active' AND next_billing_date <= ?
+       WHERE next_billing_date <= ?
        ORDER BY next_billing_date ASC`,
       [currentDate]
     );
 
     const result: BillingRunResult = {
-      subscriptionsChecked: dueSubscriptions.length,
+      runId,
+      startTime,
+      endTime: '',
+      durationMs: 0,
+      subscriptionsChecked: subscriptions.length,
       invoicesGenerated: 0,
+      skippedCount: 0,
+      skippedReasons: [],
       errors: [],
       invoices: [],
     };
 
-    for (const sub of dueSubscriptions) {
-      try {
-        await db.transaction(async () => {
-          // Verify subscription is still active inside transaction
-          const currentSub = await db.queryOne<{ status: string; next_billing_date: string; end_date: string | null }>(
-            'SELECT status, next_billing_date, end_date FROM subscriptions WHERE id = ?',
-            [sub.id]
-          );
+    for (const sub of subscriptions) {
+      // 1. Check Pause Policy
+      if (sub.status === 'paused') {
+        result.skippedCount++;
+        result.skippedReasons.push({
+          subscriptionId: sub.id,
+          subscriptionNumber: sub.subscription_number,
+          reason: 'Subscription is paused; recurring billing suspended',
+        });
+        continue;
+      }
 
-          if (!currentSub || currentSub.status !== 'active') {
-            return;
-          }
+      // 2. Check Closed or Cancelled
+      if (sub.status === 'closed' || sub.status === 'cancelled') {
+        result.skippedCount++;
+        result.skippedReasons.push({
+          subscriptionId: sub.id,
+          subscriptionNumber: sub.subscription_number,
+          reason: `Subscription is in status '${sub.status}'`,
+        });
+        continue;
+      }
 
-          // Check if subscription has expired
-          if (currentSub.end_date && currentSub.end_date < currentDate) {
-            await db.execute("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
-            await AuditService.log('SUBSCRIPTION_EXPIRED', 'subscriptions', sub.id, triggerUserId, {
-              endDate: currentSub.end_date,
-              currentDate,
-            });
-            return;
-          }
+      // 3. Check Expiry Policy
+      if (sub.end_date && sub.end_date < currentDate) {
+        await db.execute("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+        await AuditService.log('SUBSCRIPTION_EXPIRED', 'subscriptions', sub.id, triggerUserId, {
+          endDate: sub.end_date,
+          currentDate,
+        });
+        result.skippedCount++;
+        result.skippedReasons.push({
+          subscriptionId: sub.id,
+          subscriptionNumber: sub.subscription_number,
+          reason: `Subscription expired on ${sub.end_date}`,
+        });
+        continue;
+      }
 
-          const periodStart = currentSub.next_billing_date;
-          const periodEnd = this.advanceDate(periodStart, sub.billing_frequency);
-          const dueDate = periodEnd; // Due at period end
+      if (sub.status !== 'active') {
+        result.skippedCount++;
+        result.skippedReasons.push({
+          subscriptionId: sub.id,
+          subscriptionNumber: sub.subscription_number,
+          reason: `Subscription status '${sub.status}' is not eligible for active billing`,
+        });
+        continue;
+      }
 
-          // Check if invoice for this (subscription_id, period_start) already exists (Idempotency)
-          const existingInvoice = await db.queryOne(
-            'SELECT id FROM invoices WHERE subscription_id = ? AND period_start = ?',
-            [sub.id, periodStart]
-          );
+      // 4. Missed-period catch-up loop: invoice all due periods sequentially up to currentDate
+      let currentBillingDate = sub.next_billing_date;
 
-          if (existingInvoice) {
-            // Already billed for this period, advance date safely
-            await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
-            return;
-          }
+      while (currentBillingDate <= currentDate) {
+        // Do not invoice periods outside the subscription's valid dates
+        if (sub.end_date && currentBillingDate >= sub.end_date) {
+          await db.execute("UPDATE subscriptions SET status = 'expired' WHERE id = ?", [sub.id]);
+          result.skippedReasons.push({
+            subscriptionId: sub.id,
+            subscriptionNumber: sub.subscription_number,
+            reason: `Period starts at or after subscription end date (${sub.end_date}); marked expired`,
+          });
+          break;
+        }
 
-          const invoiceId = uuidv4();
-          const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+        try {
+          let periodProcessed = false;
 
-          // 1. Insert Invoice
-          await db.execute(
-            `INSERT INTO invoices (
-              id, invoice_number, subscription_id, customer_id, period_start, period_end, due_date,
-              status, subtotal, discount_amount, tax_amount, total_amount, amount_paid, amount_due
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 0.00, ?)`,
-            [
-              invoiceId,
-              invoiceNumber,
-              sub.id,
-              sub.customer_id,
-              periodStart,
-              periodEnd,
-              dueDate,
-              sub.subtotal,
-              sub.discount_amount,
-              sub.tax_amount,
-              sub.total_amount,
-              sub.total_amount,
-            ]
-          );
+          await db.transaction(async () => {
+            // Row-level lock / state recheck inside transaction
+            const currentSub = await db.queryOne<{ status: string; next_billing_date: string; end_date: string | null }>(
+              'SELECT status, next_billing_date, end_date FROM subscriptions WHERE id = ?',
+              [sub.id]
+            );
 
-          // 2. Snapshot lines from subscription_lines
-          const subLines = await db.query<{
-            product_id: string;
-            variant_id: string | null;
-            quantity: number;
-            unit_price: number;
-            subtotal: number;
-          }>('SELECT * FROM subscription_lines WHERE subscription_id = ?', [sub.id]);
-
-          for (const sl of subLines) {
-            const prod = await db.queryOne<{ name: string }>('SELECT name FROM products WHERE id = ?', [sl.product_id]);
-            let desc = prod ? prod.name : 'Subscription Item';
-            if (sl.variant_id) {
-              const variant = await db.queryOne<{ attribute_value: string }>(
-                'SELECT attribute_value FROM product_variants WHERE id = ?',
-                [sl.variant_id]
-              );
-              if (variant) desc += ` (${variant.attribute_value})`;
+            if (!currentSub || currentSub.status !== 'active') {
+              return;
             }
 
-            await db.execute(
-              `INSERT INTO invoice_lines (id, invoice_id, product_id, variant_id, description, quantity, unit_price, subtotal)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [uuidv4(), invoiceId, sl.product_id, sl.variant_id, desc, sl.quantity, sl.unit_price, sl.subtotal]
+            const periodStart = currentSub.next_billing_date;
+            const periodEnd = this.advanceDate(periodStart, sub.billing_frequency);
+            const dueDate = periodEnd;
+
+            // Database uniqueness check on (subscription_id, period_start)
+            const existingInvoice = await db.queryOne(
+              'SELECT id FROM invoices WHERE subscription_id = ? AND period_start = ?',
+              [sub.id, periodStart]
             );
-          }
 
-          // 3. Atomically advance next_billing_date or expire if end_date reached
-          if (currentSub.end_date && periodEnd >= currentSub.end_date) {
-            await db.execute("UPDATE subscriptions SET next_billing_date = ?, status = 'expired' WHERE id = ?", [periodEnd, sub.id]);
-          } else {
-            await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
-          }
+            if (existingInvoice) {
+              // Already billed for this period, advance date safely to prevent infinite loop
+              await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
+              currentBillingDate = periodEnd;
+              return;
+            }
 
-          result.invoicesGenerated++;
-          result.invoices.push({ id: invoiceId, invoiceNumber, amount: sub.total_amount });
-        });
-      } catch (err: any) {
-        result.errors.push({ subscriptionId: sub.id, error: err.message });
+            const invoiceId = uuidv4();
+            const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+
+            // Create Invoice Snapshot
+            await db.execute(
+              `INSERT INTO invoices (
+                id, invoice_number, subscription_id, customer_id, period_start, period_end, due_date,
+                status, subtotal, discount_amount, tax_amount, total_amount, amount_paid, amount_due
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, 0.00, ?)`,
+              [
+                invoiceId,
+                invoiceNumber,
+                sub.id,
+                sub.customer_id,
+                periodStart,
+                periodEnd,
+                dueDate,
+                sub.subtotal,
+                sub.discount_amount,
+                sub.tax_amount,
+                sub.total_amount,
+                sub.total_amount,
+              ]
+            );
+
+            // Copy Lines & Add-ons to invoice_lines snapshot
+            const subLines = await db.query<{
+              product_id: string;
+              variant_id: string | null;
+              quantity: number;
+              unit_price: number;
+              subtotal: number;
+            }>('SELECT * FROM subscription_lines WHERE subscription_id = ?', [sub.id]);
+
+            for (const sl of subLines) {
+              const prod = await db.queryOne<{ name: string }>('SELECT name FROM products WHERE id = ?', [sl.product_id]);
+              let desc = prod ? prod.name : 'Subscription Item';
+              if (sl.variant_id) {
+                const variant = await db.queryOne<{ attribute_value: string }>(
+                  'SELECT attribute_value FROM product_variants WHERE id = ?',
+                  [sl.variant_id]
+                );
+                if (variant) desc += ` (${variant.attribute_value})`;
+              }
+
+              await db.execute(
+                `INSERT INTO invoice_lines (id, invoice_id, product_id, variant_id, description, quantity, unit_price, subtotal)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [uuidv4(), invoiceId, sl.product_id, sl.variant_id, desc, sl.quantity, sl.unit_price, sl.subtotal]
+              );
+            }
+
+            // Atomically advance next_billing_date inside transaction
+            if (currentSub.end_date && periodEnd >= currentSub.end_date) {
+              await db.execute("UPDATE subscriptions SET next_billing_date = ?, status = 'expired' WHERE id = ?", [periodEnd, sub.id]);
+            } else {
+              await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
+            }
+
+            result.invoicesGenerated++;
+            result.invoices.push({ id: invoiceId, invoiceNumber, amount: sub.total_amount, periodStart, periodEnd });
+            currentBillingDate = periodEnd;
+            periodProcessed = true;
+          });
+
+          if (!periodProcessed) {
+            break; // Break if sub was not active or already reached end
+          }
+        } catch (err: any) {
+          result.errors.push({ subscriptionId: sub.id, error: err.message });
+          break; // Stop loop on error for this subscription to avoid infinite loop
+        }
       }
     }
 
-    await AuditService.log('BILLING_RUN_EXECUTED', 'billing', undefined, triggerUserId, {
-      date: currentDate,
+    const endTimeDate = new Date();
+    result.endTime = endTimeDate.toISOString();
+    result.durationMs = endTimeDate.getTime() - startTimeDate.getTime();
+
+    // Record complete billing run log
+    await AuditService.log('BILLING_RUN_EXECUTED', 'billing', runId, triggerUserId, {
+      runId,
+      startTime: result.startTime,
+      endTime: result.endTime,
+      durationMs: result.durationMs,
+      targetDate: currentDate,
       generated: result.invoicesGenerated,
       checked: result.subscriptionsChecked,
+      skippedCount: result.skippedCount,
+      errorsCount: result.errors.length,
+      skippedReasons: result.skippedReasons,
     });
 
     return result;

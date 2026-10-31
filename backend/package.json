@@ -9,6 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "test": "tsx tests/run_tests.ts",
     "test:auth": "tsx tests/auth_tests.ts && tsx tests/auth_http_tests.ts",
+    "test:billing": "tsx tests/billing_tests.ts",
     "migrate": "tsx src/config/migrate.ts",
     "seed": "tsx src/config/seed.ts"
   },

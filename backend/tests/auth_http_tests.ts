@@ -16,9 +16,7 @@ async function runHttpAuthTests() {
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}/api/auth`;
-
   let sessionCookie = '';
-
   try {
     // 1. Customer Registration HTTP Test
     console.log('[HTTP 1] POST /api/auth/register...');
