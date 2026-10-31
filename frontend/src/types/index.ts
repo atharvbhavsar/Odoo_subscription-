@@ -24,6 +24,9 @@ export interface ProductVariant {
   attribute_name: string;
   attribute_value: string;
   price_extra: number;
+  is_active?: number;
+  effective_price?: number;
+  created_at?: string;
 }
 
 export interface Product {
@@ -34,6 +37,7 @@ export interface Product {
   cost_price: number;
   notes?: string;
   is_active: number;
+  created_at?: string;
   variants?: ProductVariant[];
 }
 
@@ -201,7 +205,6 @@ export interface DashboardSummary {
   subscriptionsByPlan?: Array<{ planName: string; count: number; totalValue: number }>;
   filtersApplied?: { startDate?: string; endDate?: string };
 }
-
 
 export interface QuotationTemplateLine {
   id: string;

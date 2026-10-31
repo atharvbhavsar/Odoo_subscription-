@@ -137,8 +137,8 @@ async function validateTemplateReferences(
       }
 
       if (line.variant_id) {
-        const variant = await db.queryOne<{ id: string; product_id: string }>(
-          'SELECT id, product_id FROM product_variants WHERE id = ?',
+        const variant = await db.queryOne<{ id: string; product_id: string; is_active: number }>(
+          'SELECT id, product_id, is_active FROM product_variants WHERE id = ?',
           [line.variant_id]
         );
         if (!variant) {
@@ -146,6 +146,14 @@ async function validateTemplateReferences(
             error: {
               code: 'INVALID_VARIANT',
               message: `Variant at line ${i + 1} with ID '${line.variant_id}' does not exist`,
+            },
+          };
+        }
+        if (variant.is_active === 0) {
+          return {
+            error: {
+              code: 'INACTIVE_VARIANT',
+              message: `Variant at line ${i + 1} with ID '${line.variant_id}' is inactive`,
             },
           };
         }

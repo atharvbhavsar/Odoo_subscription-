@@ -138,13 +138,19 @@ export class SubscriptionAddonService {
     let priceExtra = 0;
     if (data.variantId) {
       const variant = await db.queryOne<{ id: string; product_id: string; price_extra: number }>(
-        'SELECT id, product_id, price_extra FROM product_variants WHERE id = ? AND product_id = ?',
+        'SELECT id, product_id, price_extra, is_active FROM product_variants WHERE id = ? AND product_id = ?',
         [data.variantId, data.productId]
       );
 
       if (!variant) {
         const err = new Error('Selected variant does not exist or does not belong to the selected product') as any;
         err.code = 'INVALID_VARIANT';
+        err.status = 400;
+        throw err;
+      }
+      if (variant.is_active === 0) {
+        const err = new Error('Selected variant is inactive and cannot be selected for new add-ons') as any;
+        err.code = 'INACTIVE_VARIANT';
         err.status = 400;
         throw err;
       }

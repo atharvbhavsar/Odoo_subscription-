@@ -41,8 +41,8 @@ export class PricingService {
     let totalQuantity = 0;
 
     for (const input of lineInputs) {
-      const product = await db.queryOne<{ id: string; name: string; sales_price: number }>(
-        'SELECT id, name, sales_price FROM products WHERE id = ?',
+      const product = await db.queryOne<{ id: string; name: string; sales_price: number; is_active: number }>(
+        'SELECT id, name, sales_price, is_active FROM products WHERE id = ?',
         [input.productId]
       );
 
@@ -50,18 +50,40 @@ export class PricingService {
         throw new Error(`Product with ID ${input.productId} not found`);
       }
 
+      if (product.is_active === 0) {
+        throw new Error(`Product '${product.name}' is inactive and cannot be selected for new transactions`);
+      }
+
       let unitPrice = input.unitPrice !== undefined ? input.unitPrice : product.sales_price;
       let description = product.name;
 
       if (input.variantId) {
-        const variant = await db.queryOne<{ id: string; attribute_name: string; attribute_value: string; price_extra: number }>(
-          'SELECT id, attribute_name, attribute_value, price_extra FROM product_variants WHERE id = ?',
+        const variant = await db.queryOne<{
+          id: string;
+          product_id: string;
+          attribute_name: string;
+          attribute_value: string;
+          price_extra: number;
+          is_active: number;
+        }>(
+          'SELECT id, product_id, attribute_name, attribute_value, price_extra, is_active FROM product_variants WHERE id = ?',
           [input.variantId]
         );
-        if (variant) {
-          unitPrice += variant.price_extra;
-          description += ` (${variant.attribute_name}: ${variant.attribute_value})`;
+
+        if (!variant) {
+          throw new Error(`Variant with ID ${input.variantId} not found`);
         }
+
+        if (variant.product_id !== input.productId) {
+          throw new Error(`Variant '${variant.attribute_value}' does not belong to product '${product.name}'`);
+        }
+
+        if (variant.is_active === 0) {
+          throw new Error(`Variant '${variant.attribute_value}' is inactive and cannot be selected for new transactions`);
+        }
+
+        unitPrice += variant.price_extra;
+        description += ` (${variant.attribute_name}: ${variant.attribute_value})`;
       }
 
       const lineSubtotal = this.round(unitPrice * input.quantity);
@@ -143,4 +165,3 @@ export class PricingService {
     };
   }
 }
-

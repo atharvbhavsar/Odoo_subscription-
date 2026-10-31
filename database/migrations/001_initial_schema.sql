@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   attribute_name TEXT NOT NULL,
   attribute_value TEXT NOT NULL,
   price_extra REAL NOT NULL DEFAULT 0.00,
+  is_active INTEGER DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

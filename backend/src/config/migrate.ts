@@ -10,7 +10,15 @@ export async function runMigrations() {
   for (const file of files) {
     console.log(`Applying migration: ${file}`);
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    await db.exec(sql);
+    try {
+      await db.exec(sql);
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('duplicate column name')) {
+        // Safe idempotent column addition
+        continue;
+      }
+      throw err;
+    }
   }
   console.log('Migrations applied successfully.');
 }
