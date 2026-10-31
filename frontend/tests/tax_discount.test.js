@@ -96,3 +96,4 @@ test('Tax & Discount: Inactive rules are excluded from quotation selectors', () 
   assert.equal(selectableDiscounts.length, 1);
   assert.equal(selectableDiscounts[0].id, 'disc-01');
 });
+

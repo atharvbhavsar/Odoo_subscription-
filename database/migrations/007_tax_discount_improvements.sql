@@ -7,3 +7,4 @@ ALTER TABLE taxes ADD COLUMN updated_at TIMESTAMP;
 ALTER TABLE discounts ADD COLUMN description TEXT;
 ALTER TABLE discounts ADD COLUMN applicable_product_id TEXT REFERENCES products(id);
 ALTER TABLE discounts ADD COLUMN updated_at TIMESTAMP;
+

@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "Unified Subscription Management System for Brightloop Software",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
+    "build": "npm run build:backend && npm run build:frontend",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "test:backend": "npm --prefix backend test",
@@ -22,4 +30,3 @@
   "author": "Atharv & Ruturaj",
   "license": "ISC"
 }
-

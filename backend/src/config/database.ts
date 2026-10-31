@@ -16,7 +16,22 @@ class SQLiteDatabase implements IDatabase {
   private db: DatabaseSync;
 
   constructor(filePath?: string) {
-    const dbPath = filePath || path.resolve(__dirname, '../../../database/brightloop.sqlite');
+    let dbPath = filePath || path.resolve(__dirname, '../../../database/brightloop.sqlite');
+
+    // In serverless environments (e.g. Vercel), root filesystem is read-only.
+    // Copy bundled sqlite database to writable /tmp directory if available.
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      const tmpPath = path.join('/tmp', 'brightloop.sqlite');
+      if (!fs.existsSync(tmpPath) && fs.existsSync(dbPath)) {
+        try {
+          fs.copyFileSync(dbPath, tmpPath);
+        } catch (e) {
+          console.warn('Notice: Could not copy bundled sqlite to /tmp:', e);
+        }
+      }
+      dbPath = tmpPath;
+    }
+
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -62,4 +77,3 @@ class SQLiteDatabase implements IDatabase {
 }
 
 export const db: IDatabase = new SQLiteDatabase();
-

@@ -19,9 +19,12 @@
     "test:plan": "tsx tests/plan_tests.ts",
     "test:tax-discount": "tsx tests/tax_discount_tests.ts",
     "test:customer-portal": "tsx tests/customer_portal_tests.ts",
-    "test:all": "tsx tests/auth_tests.ts && tsx tests/billing_tests.ts && tsx tests/invoice_tests.ts && tsx tests/pdf_email_tests.ts && tsx tests/dashboard_tests.ts && tsx tests/billing_run_http_tests.ts && tsx tests/addon_tests.ts && tsx tests/customer_portal_tests.ts && tsx tests/run_tests.ts",
+    "test:quotation": "tsx tests/quotation_tests.ts",
+    "test:all": "tsx tests/auth_tests.ts && tsx tests/billing_tests.ts && tsx tests/invoice_tests.ts && tsx tests/pdf_email_tests.ts && tsx tests/dashboard_tests.ts && tsx tests/billing_run_http_tests.ts && tsx tests/addon_tests.ts && tsx tests/quotation_tests.ts && tsx tests/customer_portal_tests.ts && tsx tests/run_tests.ts",
     "migrate": "tsx src/config/migrate.ts",
-    "seed": "tsx src/config/seed.ts"
+    "seed": "tsx src/config/seed.ts",
+    "supabase:sync": "node sync_supabase.js",
+    "supabase:dump": "node generate_supabase_dump.js"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",

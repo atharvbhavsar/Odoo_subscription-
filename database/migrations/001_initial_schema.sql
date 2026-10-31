@@ -115,13 +115,18 @@ CREATE TABLE IF NOT EXISTS quotations (
   plan_id TEXT NOT NULL REFERENCES plans(id),
   discount_id TEXT REFERENCES discounts(id),
   tax_id TEXT REFERENCES taxes(id),
-  status TEXT NOT NULL CHECK (status IN ('draft', 'quotation', 'confirmed', 'cancelled')) DEFAULT 'draft',
+  status TEXT NOT NULL CHECK (status IN ('draft', 'quotation', 'sent', 'confirmed', 'cancelled', 'expired')) DEFAULT 'draft',
   valid_until TEXT NOT NULL,
   subtotal REAL NOT NULL DEFAULT 0.00,
   discount_amount REAL NOT NULL DEFAULT 0.00,
   tax_amount REAL NOT NULL DEFAULT 0.00,
   total_amount REAL NOT NULL DEFAULT 0.00,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  subscription_id TEXT REFERENCES subscriptions(id),
+  cancelled_at TIMESTAMP,
+  cancel_reason TEXT,
+  sent_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS quotation_lines (
@@ -150,6 +155,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   discount_amount REAL NOT NULL DEFAULT 0.00,
   tax_amount REAL NOT NULL DEFAULT 0.00,
   total_amount REAL NOT NULL DEFAULT 0.00,
+  quotation_id TEXT REFERENCES quotations(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

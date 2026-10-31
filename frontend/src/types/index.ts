@@ -116,7 +116,9 @@ export interface QuotationLine {
   product_id: string;
   variant_id?: string | null;
   product_name?: string;
-  attribute_value?: string;
+  attribute_name?: string | null;
+  attribute_value?: string | null;
+  variant_price_extra?: number | null;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -128,20 +130,31 @@ export interface Quotation {
   customer_id: string;
   customer_name?: string;
   company_name?: string;
+  customer_email?: string;
   plan_id: string;
   plan_name?: string;
   billing_frequency?: string;
   discount_id?: string | null;
+  discount_code?: string | null;
+  discount_type?: 'percentage' | 'fixed' | null;
+  discount_value?: number | null;
   tax_id?: string | null;
+  tax_name?: string | null;
+  tax_rate?: number | null;
   status: 'draft' | 'quotation' | 'sent' | 'confirmed' | 'cancelled' | 'expired';
   valid_until: string;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
-  created_at: string;
   subscription_id?: string | null;
   subscription_number?: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
+  sent_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  line_count?: number;
   lines?: QuotationLine[];
 }
 
