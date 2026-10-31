@@ -20,6 +20,12 @@ export const env = {
   SMTP_FROM: process.env.SMTP_FROM || 'Brightloop Billing <billing@brightloop.io>',
   EMAIL_ENABLED: process.env.EMAIL_ENABLED === 'true',
 
+  // Supabase Configuration
+  SUPABASE_URL: process.env.SUPABASE_URL || 'https://lpqhxnacbvztrkdfzebk.supabase.co',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY || '',
+
   // Company details for invoices
   COMPANY_NAME: process.env.COMPANY_NAME || 'Brightloop Software Inc.',
   COMPANY_ADDRESS: process.env.COMPANY_ADDRESS || '100 Innovation Way, Suite 400, San Francisco, CA 94105',

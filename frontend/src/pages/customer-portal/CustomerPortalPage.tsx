@@ -52,6 +52,48 @@ export const CustomerPortalPage: React.FC = () => {
     setPaymentMsg(null);
     try {
       const order = await paymentService.createRazorpayOrder(inv.id);
+
+      if (typeof (window as any).Razorpay !== 'undefined') {
+        const rzp = new (window as any).Razorpay({
+          key: order.keyId,
+          amount: order.amountInPaise,
+          currency: order.currency || 'INR',
+          name: 'Brightloop Subscription Manager',
+          description: `Settlement for Invoice #${inv.invoice_number}`,
+          order_id: order.orderId,
+          handler: async (response: any) => {
+            try {
+              await paymentService.verifyPayment({
+                invoice_id: inv.id,
+                gateway_order_id: response.razorpay_order_id || order.orderId,
+                gateway_payment_id: response.razorpay_payment_id,
+                gateway_signature: response.razorpay_signature,
+              });
+              setPaymentMsg(`Payment of $${order.amount.toFixed(2)} verified successfully!`);
+              loadCustomerData();
+            } catch (err: any) {
+              alert(err.message || 'Payment verification failed');
+            }
+          },
+          prefill: {
+            name: user?.name,
+            email: user?.email,
+          },
+          theme: {
+            color: '#4f46e5',
+          },
+          modal: {
+            ondismiss: () => {
+              setActionLoading(false);
+            },
+          },
+        });
+        rzp.open();
+        setActionLoading(false);
+        return;
+      }
+
+      // Offline / fallback verification
       const mockPaymentId = `pay_rzp_${Date.now()}`;
       const mockSignature = `mock_sig_${Date.now()}`;
 
