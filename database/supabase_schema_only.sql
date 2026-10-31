@@ -1,6 +1,5 @@
 -- ====================================================================
 -- Brightloop Subscription Manager - Supabase PostgreSQL Schema & Dataset
--- Project: https://lpqhxnacbvztrkdfzebk.supabase.co
 -- Generated: 2026-10-31
 -- ====================================================================
 
@@ -144,14 +143,22 @@ CREATE TABLE IF NOT EXISTS quotations (
   plan_id TEXT NOT NULL REFERENCES plans(id),
   discount_id TEXT REFERENCES discounts(id),
   tax_id TEXT REFERENCES taxes(id),
-  status TEXT NOT NULL CHECK (status IN ('draft', 'quotation', 'confirmed', 'cancelled')) DEFAULT 'draft',
+  status TEXT NOT NULL CHECK (status IN ('draft', 'quotation', 'sent', 'confirmed', 'cancelled', 'expired')) DEFAULT 'draft',
   valid_until TEXT NOT NULL,
   subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
   discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
   tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
   total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  subscription_id TEXT,
+  cancelled_at TIMESTAMPTZ,
+  cancel_reason TEXT,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer_id ON quotations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_valid_until ON quotations(valid_until);
 
 CREATE TABLE IF NOT EXISTS quotation_lines (
   id TEXT PRIMARY KEY,
@@ -171,6 +178,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   plan_id TEXT NOT NULL REFERENCES plans(id),
   discount_id TEXT REFERENCES discounts(id),
   tax_id TEXT REFERENCES taxes(id),
+  quotation_id TEXT REFERENCES quotations(id),
   status TEXT NOT NULL CHECK (status IN ('draft', 'quotation', 'confirmed', 'active', 'paused', 'closed', 'expired')) DEFAULT 'confirmed',
   start_date TEXT NOT NULL,
   end_date TEXT,
