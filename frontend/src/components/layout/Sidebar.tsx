@@ -8,6 +8,9 @@ import {
   FileText,
   Repeat,
   Receipt,
+  Percent,
+  Tag,
+  CreditCard,
   User,
 } from 'lucide-react';
 
@@ -19,9 +22,12 @@ export const Sidebar: React.FC = () => {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/products', label: 'Products & Variants', icon: Package },
     { to: '/plans', label: 'Subscription Plans', icon: Layers },
+    { to: '/taxes', label: 'Tax Rules', icon: Percent },
+    { to: '/discounts', label: 'Discounts & Vouchers', icon: Tag },
     { to: '/quotations', label: 'Quotations', icon: FileText },
     { to: '/subscriptions', label: 'Subscriptions', icon: Repeat },
     { to: '/invoices', label: 'Invoices & Billing', icon: Receipt },
+    { to: '/payments', label: 'Payment Ledger', icon: CreditCard },
   ];
 
   const customerNavItems = [
@@ -58,4 +64,3 @@ export const Sidebar: React.FC = () => {
     </aside>
   );
 };
-

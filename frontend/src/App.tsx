@@ -7,9 +7,12 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ProductsPage } from './pages/products/ProductsPage';
 import { PlansPage } from './pages/plans/PlansPage';
+import { TaxesPage } from './pages/taxes/TaxesPage';
+import { DiscountsPage } from './pages/discounts/DiscountsPage';
 import { QuotationsPage } from './pages/quotations/QuotationsPage';
 import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
+import { PaymentsHistoryPage } from './pages/payments/PaymentsHistoryPage';
 import { CustomerPortalPage } from './pages/customer-portal/CustomerPortalPage';
 
 const RootRedirect: React.FC = () => {
@@ -31,9 +34,12 @@ export const App: React.FC = () => {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/plans" element={<PlansPage />} />
+            <Route path="/taxes" element={<TaxesPage />} />
+            <Route path="/discounts" element={<DiscountsPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/subscriptions" element={<SubscriptionsPage />} />
             <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/payments" element={<PaymentsHistoryPage />} />
             <Route path="/portal" element={<CustomerPortalPage />} />
           </Route>
 
@@ -45,4 +51,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

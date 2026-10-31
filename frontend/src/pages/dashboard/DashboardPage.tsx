@@ -10,8 +10,16 @@ import {
   AlertTriangle,
   Play,
   CheckCircle,
-  Repeat,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
 export const DashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -51,6 +59,16 @@ export const DashboardPage: React.FC = () => {
   if (loading) {
     return <LoadingSpinner message="Calculating financial metrics..." />;
   }
+
+  const chartData = [
+    {
+      name: 'Revenue Metrics',
+      Invoiced: summary?.totalInvoiced || 0,
+      Collected: summary?.totalCollected || 0,
+      Outstanding: summary?.totalOutstanding || 0,
+      Overdue: summary?.overdueAmount || 0,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -133,6 +151,25 @@ export const DashboardPage: React.FC = () => {
           <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
             <AlertTriangle className="w-6 h-6" />
           </div>
+        </div>
+      </div>
+
+      {/* Visual Analytics Chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <h3 className="text-base font-bold text-slate-800 mb-4">Financial Overview Breakdown</h3>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
+              <Legend />
+              <Bar dataKey="Invoiced" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Outstanding" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Overdue" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -220,4 +257,3 @@ export const DashboardPage: React.FC = () => {
     </div>
   );
 };
-
