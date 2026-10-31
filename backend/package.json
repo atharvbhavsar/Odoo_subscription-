@@ -21,11 +21,14 @@
     "test:quotation": "tsx tests/quotation_tests.ts",
     "test:all": "tsx tests/auth_tests.ts && tsx tests/billing_tests.ts && tsx tests/invoice_tests.ts && tsx tests/pdf_email_tests.ts && tsx tests/dashboard_tests.ts && tsx tests/billing_run_http_tests.ts && tsx tests/addon_tests.ts && tsx tests/run_tests.ts",
     "migrate": "tsx src/config/migrate.ts",
-    "seed": "tsx src/config/seed.ts"
+    "seed": "tsx src/config/seed.ts",
+    "supabase:sync": "node sync_supabase.js",
+    "supabase:dump": "node generate_supabase_dump.js"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.7",
+    "@types/pg": "^8.23.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -35,6 +38,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.14",
     "pdfkit": "^0.15.0",
+    "pg": "^8.23.1",
     "uuid": "^9.0.1",
     "zod": "^3.23.8"
   },
