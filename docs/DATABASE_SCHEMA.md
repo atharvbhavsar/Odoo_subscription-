@@ -199,3 +199,19 @@ Specific product and variant line items bundled within a quotation template.
 1. All changes must be written as a versioned script in `database/migrations/` (e.g. `001_initial_schema.sql`, `002_quotation_templates.sql`).
 2. Schema changes must be agreed upon between Atharv and Ruturaj before deployment.
 3. Zero destructive changes to historical invoices or payment records.
+
+### 2.16 `subscription_addons`
+Supplementary recurring products/services attached to an active subscription.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | `TEXT` / `UUID` | `PRIMARY KEY` | Add-on identifier |
+| `subscription_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE` | Associated subscription |
+| `product_id` | `TEXT` / `UUID` | `NOT NULL REFERENCES products(id)` | Associated product |
+| `variant_id` | `TEXT` / `UUID` | `NULLABLE REFERENCES product_variants(id)` | Optional product variant |
+| `quantity` | `INTEGER` | `NOT NULL DEFAULT 1 CHECK (quantity > 0)` | Number of add-on units |
+| `unit_price` | `NUMERIC(12, 2)` | `NOT NULL DEFAULT 0.00 CHECK (unit_price >= 0)` | Agreed price snapshot per unit |
+| `status` | `TEXT` | `CHECK (status IN ('pending_activation', 'active', 'pending_removal', 'removed'))` | Add-on lifecycle state |
+| `effective_start_date` | `DATE` / `TEXT` | `NOT NULL` | Billing date from which add-on is billed (next billing period) |
+| `effective_end_date` | `DATE` / `TEXT` | `NULLABLE` | Billing date from which add-on removal takes effect |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Creation timestamp |
+| `updated_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last update timestamp |

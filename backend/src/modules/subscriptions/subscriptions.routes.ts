@@ -3,8 +3,12 @@ import { db } from '../../config/database';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { requireRole } from '../../middleware/role.middleware';
 import { AuditService } from '../audit/audit.service';
+import { subscriptionAddonsRouter } from './subscription-addons.routes';
 
 export const subscriptionsRouter = Router();
+
+// Sub-router for subscription add-ons (/api/subscriptions/:id/addons)
+subscriptionsRouter.use('/:id/addons', subscriptionAddonsRouter);
 
 // List subscriptions
 subscriptionsRouter.get('/', requireAuth, async (req: Request, res: Response) => {
@@ -27,7 +31,7 @@ subscriptionsRouter.get('/', requireAuth, async (req: Request, res: Response) =>
   res.json({ data: subs, message: 'Subscriptions retrieved successfully' });
 });
 
-// Subscription detail with lines
+// Subscription detail with lines and add-ons
 subscriptionsRouter.get('/:id', requireAuth, async (req: Request, res: Response) => {
   const sub = await db.queryOne<{
     id: string;
@@ -60,7 +64,17 @@ subscriptionsRouter.get('/:id', requireAuth, async (req: Request, res: Response)
     [sub.id]
   );
 
-  res.json({ data: { ...sub, lines }, message: 'Subscription details retrieved' });
+  const addons = await db.query(
+    `SELECT sa.*, pr.name as product_name, pv.attribute_name, pv.attribute_value
+     FROM subscription_addons sa
+     JOIN products pr ON sa.product_id = pr.id
+     LEFT JOIN product_variants pv ON sa.variant_id = pv.id
+     WHERE sa.subscription_id = ?
+     ORDER BY sa.created_at DESC`,
+    [sub.id]
+  );
+
+  res.json({ data: { ...sub, lines, addons }, message: 'Subscription details retrieved' });
 });
 
 // Pause subscription

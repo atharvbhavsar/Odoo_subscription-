@@ -523,3 +523,82 @@ Every response returned by the backend uses a standardized envelope structure.
    Should future versions allow multiple coupon codes, or remain strictly one coupon code per quotation/subscription? *(Proposed: Keep strictly 1 coupon code for Version 1).*
 3. **Webhook vs Client Verification:**  
    In Razorpay live mode, if a customer closes the browser before checkout signature verification completes, should a Razorpay Webhook endpoint (`POST /api/payments/webhook`) also be registered with webhook signature verification? *(Proposed: Yes, for production deploy).*
+
+
+---
+
+## 6. Subscription Add-ons & Billing Engine Integration Contract (Step 4)
+
+### 6.1 Subscription Add-on API Endpoints
+
+#### `GET /api/subscriptions/:id/addons`
+- **Access:** Authenticated (Customer can only view own subscription; Admin/Staff can view any).
+- **Behavior:** Returns all add-ons configured on the subscription, including product and variant details, status, and effective dates.
+- **Response (`200 OK`):**
+  ```json
+  {
+    "data": [
+      {
+        "id": "addon-uuid",
+        "subscription_id": "sub-uuid",
+        "product_id": "prod-02",
+        "product_name": "Storage Add-on (100GB)",
+        "variant_id": null,
+        "quantity": 2,
+        "unit_price": 50.00,
+        "status": "pending_activation",
+        "effective_start_date": "2026-11-30",
+        "effective_end_date": null,
+        "created_at": "2026-10-31T11:00:00.000Z"
+      }
+    ],
+    "message": "Subscription add-ons retrieved successfully"
+  }
+  ```
+
+#### `POST /api/subscriptions/:id/addons`
+- **Access:** Authenticated (Customer for own subscription; Admin/Staff for any).
+- **Behavior:** Schedules an add-on to take effect on the **next billing period** (`effective_start_date = subscription.next_billing_date`).
+- **Request:**
+  ```json
+  {
+    "product_id": "prod-02",
+    "variant_id": null,
+    "quantity": 2
+  }
+  ```
+- **Response (`201 Created`):** Returns the scheduled add-on record in `pending_activation` status.
+
+#### `PATCH /api/subscriptions/:id/addons/:addonId`
+- **Access:** Authenticated (Customer for own subscription; Admin/Staff for any).
+- **Behavior:** Updates quantity of an active or pending add-on. Rejects updates if add-on is already removed.
+- **Request:**
+  ```json
+  { "quantity": 4 }
+  ```
+- **Response (`200 OK`):** Returns updated add-on record.
+
+#### `PATCH /api/subscriptions/:id/addons/:addonId/remove`
+- **Access:** Authenticated (Customer for own subscription; Admin/Staff for any).
+- **Behavior:** Schedules an add-on removal to take effect on the **next billing period** (`effective_end_date = subscription.next_billing_date`, status transitions to `pending_removal`).
+- **Response (`200 OK`):** Returns add-on record with scheduled `effective_end_date`.
+
+### 6.2 Billing Engine Integration Contract (Coordinating with Atharv)
+1. **Authoritative Invoicing:**
+   - In `BillingService.runBilling(targetDate)`:
+     - The query for invoice line generation will consume both `subscription_lines` (base contractual commitment) and `SubscriptionAddonService.getActiveAddonsForPeriod(sub.id, periodStart)`:
+       ```ts
+       const activeAddons = await SubscriptionAddonService.getActiveAddonsForPeriod(sub.id, periodStart);
+       ```
+     - For each active add-on, insert an `invoice_lines` row:
+       - `invoice_id`: `invoiceId`
+       - `product_id`: `addon.product_id`
+       - `variant_id`: `addon.variant_id`
+       - `description`: `addon.product_name + (addon.variant_id ? ' (' + addon.attribute_value + ')' : '') + ' (Add-on)'`
+       - `quantity`: `addon.quantity`
+       - `unit_price`: `addon.unit_price`
+       - `subtotal`: `round(addon.unit_price * addon.quantity)`
+     - Recompute `subtotal`, `discount_amount`, `tax_amount`, and `total_amount` for the generated invoice.
+2. **Backward Compatibility & Safety:**
+   - Add-on additions/removals take effect on `next_billing_date`. Historical invoices remain 100% immutable and untouched.
+   - Files to coordinate with Atharv: `backend/src/modules/billing/billing.service.ts`.
