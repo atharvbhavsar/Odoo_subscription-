@@ -110,14 +110,68 @@ export const catalogService = {
     });
   },
 
-  async getPlans() {
-    return apiRequest<Plan[]>('/plans');
+  /**
+   * Retrieve subscription plans with optional search and status filtering
+   */
+  async getPlans(params?: { search?: string; status?: 'all' | 'active' | 'inactive' }) {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.status) query.append('status', params.status);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<Plan[]>(`/plans${queryString}`);
   },
 
-  async createPlan(data: Partial<Plan>) {
+  /**
+   * Retrieve single plan with detailed product/variant lines
+   */
+  async getPlan(id: string) {
+    return apiRequest<Plan>(`/plans/${id}`);
+  },
+
+  /**
+   * Create new subscription plan
+   */
+  async createPlan(data: Omit<Partial<Plan>, 'lines'> & { lines?: Array<{ product_id: string; variant_id?: string | null; quantity: number }> }) {
     return apiRequest<Plan>('/plans', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update existing subscription plan
+   */
+  async updatePlan(id: string, data: Omit<Partial<Plan>, 'lines'> & { lines?: Array<{ product_id: string; variant_id?: string | null; quantity: number }> }) {
+    return apiRequest<Plan>(`/plans/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Activate subscription plan
+   */
+  async activatePlan(id: string) {
+    return apiRequest<Plan>(`/plans/${id}/activate`, {
+      method: 'PATCH',
+    });
+  },
+
+  /**
+   * Deactivate subscription plan (soft toggle)
+   */
+  async deactivatePlan(id: string) {
+    return apiRequest<Plan>(`/plans/${id}/deactivate`, {
+      method: 'PATCH',
+    });
+  },
+
+  /**
+   * Delete subscription plan (prohibited if referenced)
+   */
+  async deletePlan(id: string) {
+    return apiRequest<{ id: string }>(`/plans/${id}`, {
+      method: 'DELETE',
     });
   },
 

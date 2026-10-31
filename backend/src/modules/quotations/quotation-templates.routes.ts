@@ -99,8 +99,8 @@ async function validateTemplateReferences(
   lines?: Array<{ product_id: string; variant_id?: string | null; quantity: number }>
 ): Promise<{ error?: { code: string; message: string } }> {
   if (default_plan_id) {
-    const plan = await db.queryOne<{ id: string; is_active: number }>(
-      'SELECT id, is_active FROM plans WHERE id = ?',
+    const plan = await db.queryOne<{ id: string; is_active: number; start_date?: string | null; end_date?: string | null }>(
+      'SELECT id, is_active, start_date, end_date FROM plans WHERE id = ?',
       [default_plan_id]
     );
     if (!plan) {
@@ -108,6 +108,13 @@ async function validateTemplateReferences(
     }
     if (!plan.is_active) {
       return { error: { code: 'INACTIVE_PLAN', message: 'Selected default plan is inactive' } };
+    }
+    const today = new Date().toISOString().split('T')[0];
+    if (plan.start_date && today < plan.start_date) {
+      return { error: { code: 'PLAN_NOT_AVAILABLE', message: `Default plan is not yet available (available from ${plan.start_date})` } };
+    }
+    if (plan.end_date && today > plan.end_date) {
+      return { error: { code: 'PLAN_EXPIRED', message: `Default plan availability expired on ${plan.end_date}` } };
     }
   }
 

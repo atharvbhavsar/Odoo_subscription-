@@ -144,3 +144,4 @@ test('Product: Inactive products and variants are blocked from new selection', (
   assert.strictEqual(isSelectableForNewTransaction(inactiveProduct, null).selectable, false);
   assert.strictEqual(isSelectableForNewTransaction(activeProduct, inactiveVariant).selectable, false);
 });
+

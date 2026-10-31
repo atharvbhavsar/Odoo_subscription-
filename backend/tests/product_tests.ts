@@ -169,7 +169,7 @@ async function runProductTests() {
   // Test 11: Historical Data Preservation on Product Deactivation
   console.log('[Product Test 11] Historical Quotation & Invoice Preservation...');
   const quoteId = uuidv4();
-  const histQuoteNum = `QT-HIST-${Date.now()}`;
+  const histQuoteNum = `QT-HIST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   await db.execute(
     `INSERT INTO quotations (id, quotation_number, customer_id, plan_id, status, valid_until, subtotal, total_amount)
      VALUES (?, ?, 'cust-01', 'plan-monthly-01', 'confirmed', '2026-12-31', 430.00, 430.00)`,
@@ -205,3 +205,4 @@ runProductTests()
     console.error('Product test failed:', err);
     process.exit(1);
   });
+

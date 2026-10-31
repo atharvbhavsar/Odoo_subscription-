@@ -90,9 +90,28 @@ const createQuotationSchema = z.object({
 quotationsRouter.post('/', requireAuth, requireRole(['admin', 'staff']), validateRequest(createQuotationSchema), async (req: Request, res: Response) => {
   const { customer_id, plan_id, discount_id, tax_id, valid_until, lines } = req.body;
 
-  const plan = await db.queryOne<{ id: string; min_qty: number }>('SELECT id, min_qty FROM plans WHERE id = ?', [plan_id]);
+  const plan = await db.queryOne<{
+    id: string;
+    min_qty: number;
+    is_active: number;
+    start_date?: string | null;
+    end_date?: string | null;
+  }>('SELECT id, min_qty, is_active, start_date, end_date FROM plans WHERE id = ?', [plan_id]);
+
   if (!plan) {
     return res.status(400).json({ error: { code: 'INVALID_PLAN', message: 'Selected plan does not exist' } });
+  }
+
+  if (!plan.is_active) {
+    return res.status(400).json({ error: { code: 'INACTIVE_PLAN', message: 'Selected plan is inactive and cannot be used for new quotations' } });
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  if (plan.start_date && today < plan.start_date) {
+    return res.status(400).json({ error: { code: 'PLAN_NOT_AVAILABLE', message: `Plan is not yet available (available from ${plan.start_date})` } });
+  }
+  if (plan.end_date && today > plan.end_date) {
+    return res.status(400).json({ error: { code: 'PLAN_EXPIRED', message: `Plan availability expired on ${plan.end_date}` } });
   }
 
   const totalQty = lines.reduce((acc: number, l: any) => acc + l.quantity, 0);
@@ -180,9 +199,13 @@ quotationsRouter.post('/:id/confirm', requireAuth, requireRole(['admin', 'staff'
     return res.status(400).json({ error: { code: 'CANNOT_CONFIRM_CANCELLED', message: 'Cannot confirm a cancelled quotation' } });
   }
 
-  const plan = await db.queryOne<{ id: string; billing_frequency: string }>('SELECT * FROM plans WHERE id = ?', [quote.plan_id]);
+  const plan = await db.queryOne<{ id: string; billing_frequency: string; is_active: number }>('SELECT * FROM plans WHERE id = ?', [quote.plan_id]);
   if (!plan) {
     return res.status(400).json({ error: { code: 'INVALID_PLAN', message: 'Associated plan not found' } });
+  }
+
+  if (!plan.is_active) {
+    return res.status(400).json({ error: { code: 'INACTIVE_PLAN', message: 'Associated plan is inactive and cannot be activated into a new subscription' } });
   }
 
   const quoteLines = await db.query('SELECT * FROM quotation_lines WHERE quotation_id = ?', [quoteId]);
@@ -243,4 +266,3 @@ quotationsRouter.post('/:id/confirm', requireAuth, requireRole(['admin', 'staff'
     message: 'Quotation confirmed and subscription activated successfully',
   });
 });
-

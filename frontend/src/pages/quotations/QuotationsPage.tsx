@@ -49,7 +49,7 @@ export const QuotationsPage: React.FC = () => {
         const [custs, prods, plns, txs, discs, tpls] = await Promise.all([
           catalogService.getCustomers(),
           catalogService.getProducts(),
-          catalogService.getPlans(),
+          catalogService.getPlans({ status: 'active' }),
           catalogService.getTaxes(),
           catalogService.getDiscounts(),
           quotationTemplateService.getTemplates(false), // only active templates
@@ -353,7 +353,7 @@ export const QuotationsPage: React.FC = () => {
                     onChange={(e) => setSelectedPlanId(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                   >
-                    {plans.map((p) => (
+                    {plans.filter((p) => p.is_active === 1 || p.is_active === true).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} (${Number(p.price).toFixed(2)}/{p.billing_frequency})
                       </option>

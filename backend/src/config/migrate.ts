@@ -10,14 +10,21 @@ export async function runMigrations() {
   for (const file of files) {
     console.log(`Applying migration: ${file}`);
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    try {
-      await db.exec(sql);
-    } catch (err: any) {
-      if (err.message && err.message.toLowerCase().includes('duplicate column name')) {
-        // Safe idempotent column addition
-        continue;
+    const statements = sql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    for (const stmt of statements) {
+      try {
+        await db.exec(stmt);
+      } catch (err: any) {
+        if (err.message && err.message.toLowerCase().includes('duplicate column name')) {
+          // Safe idempotent column addition
+          continue;
+        }
+        throw err;
       }
-      throw err;
     }
   }
   console.log('Migrations applied successfully.');
@@ -31,4 +38,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-

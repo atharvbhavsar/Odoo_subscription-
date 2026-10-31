@@ -41,17 +41,42 @@ export interface Product {
   variants?: ProductVariant[];
 }
 
+export interface PlanLine {
+  id: string;
+  plan_id: string;
+  product_id: string;
+  variant_id?: string | null;
+  quantity: number;
+  product_name?: string;
+  product_type?: string;
+  sales_price?: number;
+  product_is_active?: number;
+  attribute_name?: string | null;
+  attribute_value?: string | null;
+  price_extra?: number;
+  variant_is_active?: number;
+  effective_price?: number;
+  created_at?: string;
+}
+
 export interface Plan {
   id: string;
   name: string;
+  description?: string | null;
   billing_frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  billing_interval?: number;
   price: number;
   min_qty: number;
+  start_date?: string | null;
+  end_date?: string | null;
   is_active: number | boolean;
   can_pause: number | boolean;
   can_renew: number | boolean;
   can_close_early: number | boolean;
   auto_close: number | boolean;
+  created_at?: string;
+  updated_at?: string;
+  lines?: PlanLine[];
 }
 
 export interface Tax {

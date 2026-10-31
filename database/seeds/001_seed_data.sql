@@ -17,15 +17,20 @@ VALUES
   ('prod-01', 'Brightloop ERP Core', 'service', 200.00, 50.00, 1, 'Core ERP system subscription'),
   ('prod-02', 'Storage Add-on (100GB)', 'service', 50.00, 10.00, 1, 'Extra secure cloud storage');
 
-INSERT OR IGNORE INTO product_variants (id, product_id, attribute_name, attribute_value, price_extra)
+INSERT OR IGNORE INTO product_variants (id, product_id, attribute_name, attribute_value, price_extra, is_active)
 VALUES 
-  ('var-01', 'prod-01', 'Brand Edition', 'Odoo Brand Edition', 560.00);
+  ('var-01', 'prod-01', 'Brand Edition', 'Odoo Brand Edition', 560.00, 1);
 
 -- Plans
-INSERT OR IGNORE INTO plans (id, name, billing_frequency, price, min_qty, is_active, can_pause, can_renew, can_close_early, auto_close)
+INSERT OR IGNORE INTO plans (id, name, description, billing_frequency, billing_interval, price, min_qty, is_active, can_pause, can_renew, can_close_early, auto_close)
 VALUES 
-  ('plan-monthly-01', 'Professional Monthly', 'monthly', 200.00, 1, 1, 1, 1, 1, 0),
-  ('plan-yearly-01', 'Enterprise Annual', 'yearly', 2000.00, 1, 1, 1, 1, 1, 0);
+  ('plan-monthly-01', 'Professional Monthly', 'Full ERP core package with recurring monthly cadence', 'monthly', 1, 200.00, 1, 1, 1, 1, 1, 0),
+  ('plan-yearly-01', 'Enterprise Annual', 'Yearly enterprise commitment with bundled volume savings', 'yearly', 1, 2000.00, 1, 1, 1, 1, 1, 0);
+
+-- Plan Lines
+INSERT OR IGNORE INTO plan_lines (id, plan_id, product_id, variant_id, quantity)
+VALUES
+  ('pline-01', 'plan-monthly-01', 'prod-01', NULL, 1);
 
 -- Taxes
 INSERT OR IGNORE INTO taxes (id, name, rate_percentage, is_active)
@@ -38,4 +43,3 @@ INSERT OR IGNORE INTO discounts (id, code, type, value, min_purchase_amount, min
 VALUES 
   ('disc-early10', 'EARLY10', 'percentage', 10.00, 100.00, 1, '2026-01-01', '2026-12-31', 100, 0, 1),
   ('disc-flat50', 'FLAT50', 'fixed', 50.00, 200.00, 1, '2026-01-01', '2026-12-31', 50, 0, 1);
-

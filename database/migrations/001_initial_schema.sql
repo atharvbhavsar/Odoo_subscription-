@@ -52,16 +52,31 @@ CREATE TABLE IF NOT EXISTS product_variants (
 CREATE TABLE IF NOT EXISTS plans (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  description TEXT,
   billing_frequency TEXT NOT NULL CHECK (billing_frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+  billing_interval INTEGER NOT NULL DEFAULT 1,
   price REAL NOT NULL DEFAULT 0.00,
   min_qty INTEGER NOT NULL DEFAULT 1,
+  start_date TEXT,
+  end_date TEXT,
   is_active INTEGER DEFAULT 1,
   can_pause INTEGER DEFAULT 1,
   can_renew INTEGER DEFAULT 1,
   can_close_early INTEGER DEFAULT 1,
   auto_close INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS plan_lines (
+  id TEXT PRIMARY KEY,
+  plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  variant_id TEXT REFERENCES product_variants(id),
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_plan_lines_plan_id ON plan_lines(plan_id);
 
 CREATE TABLE IF NOT EXISTS taxes (
   id TEXT PRIMARY KEY,
@@ -193,4 +208,3 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   payload TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-

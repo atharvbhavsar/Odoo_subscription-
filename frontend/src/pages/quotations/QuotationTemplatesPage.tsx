@@ -67,7 +67,7 @@ export const QuotationTemplatesPage: React.FC = () => {
   const fetchDependencies = async () => {
     try {
       const [fetchedPlans, fetchedProducts] = await Promise.all([
-        catalogService.getPlans(),
+        catalogService.getPlans({ status: 'active' }),
         catalogService.getProducts(),
       ]);
       setPlans(fetchedPlans);
@@ -506,7 +506,7 @@ export const QuotationTemplatesPage: React.FC = () => {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">No Default Plan</option>
-                  {plans.map((p) => (
+                  {plans.filter((p) => p.is_active === 1 || p.is_active === true).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} (${Number(p.price).toFixed(2)} / {p.billing_frequency})
                     </option>
