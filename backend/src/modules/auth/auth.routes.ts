@@ -9,6 +9,7 @@ import { requireRole } from '../../middleware/role.middleware';
 import { validateRequest } from '../../middleware/validate.middleware';
 import { rateLimit } from '../../middleware/rateLimit.middleware';
 import { AuditService } from '../audit/audit.service';
+import { generateToken } from '../../utils/token';
 
 export const authRouter = Router();
 
@@ -67,26 +68,25 @@ authRouter.post('/register', rateLimit(10, 60000), validateRequest(registerSchem
 
   await AuditService.log('USER_REGISTERED', 'users', userId, userId, { email, role: 'customer' });
 
-  // Auto-login session
-  req.session.user = {
+  // Auto-login session & stateless token
+  const authUser = {
     id: userId,
     email: email.toLowerCase().trim(),
-    role: 'customer',
+    role: 'customer' as const,
     customerId,
     name,
   };
+  req.session.user = authUser;
+  const token = generateToken(authUser);
 
-  res.status(201).json({
-    data: {
-      user: {
-        id: userId,
-        email: email.toLowerCase().trim(),
-        role: 'customer',
-        customerId,
-        name,
+  req.session.save(() => {
+    res.status(201).json({
+      data: {
+        user: authUser,
+        token,
       },
-    },
-    message: 'Registration successful',
+      message: 'Registration successful',
+    });
   });
 });
 
@@ -134,7 +134,7 @@ authRouter.post('/login', rateLimit(15, 60000), validateRequest(loginSchema), as
     );
   }
 
-  req.session.user = {
+  const authUser = {
     id: user.id,
     email: user.email,
     role: user.role,
@@ -142,13 +142,19 @@ authRouter.post('/login', rateLimit(15, 60000), validateRequest(loginSchema), as
     name: customerProfile?.name || (user.role === 'admin' ? 'Administrator' : 'Staff Member'),
   };
 
+  req.session.user = authUser;
+  const token = generateToken(authUser);
+
   await AuditService.log('USER_LOGIN', 'users', user.id, user.id);
 
-  res.json({
-    data: {
-      user: req.session.user,
-    },
-    message: 'Login successful',
+  req.session.save(() => {
+    res.json({
+      data: {
+        user: authUser,
+        token,
+      },
+      message: 'Login successful',
+    });
   });
 });
 
@@ -167,16 +173,13 @@ authRouter.post('/logout', requireAuth, (req: Request, res: Response) => {
   });
 });
 
-// 4. Current Session Endpoint
-authRouter.get('/me', (req: Request, res: Response) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({
-      error: { code: 'UNAUTHENTICATED', message: 'No active session' },
-    });
-  }
+// 4. Current Session Endpoint (Cookie or Bearer Token)
+authRouter.get('/me', requireAuth, (req: Request, res: Response) => {
+  const token = generateToken(req.user!);
   res.json({
     data: {
-      user: req.session.user,
+      user: req.user,
+      token,
     },
     message: 'Session verified',
   });
