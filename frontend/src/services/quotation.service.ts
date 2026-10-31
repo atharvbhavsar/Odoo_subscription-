@@ -123,20 +123,18 @@ export const subscriptionService = {
     return apiRequest<Subscription>(`/subscriptions/${id}`);
   },
   
-  async pause(id: string) {
-    return apiRequest<any>(`/subscriptions/${id}/pause`, { method: 'POST' });
-  },
-
-  async resume(id: string) {
-    return apiRequest<any>(`/subscriptions/${id}/resume`, { method: 'POST' });
-  },
-
-  async renew(id: string) {
-    return apiRequest<any>(`/subscriptions/${id}/renew`, { method: 'POST' });
-  },
-
-  async close(id: string) {
-    return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
+  async createSubscription(data: {
+    customer_id: string;
+    plan_id: string;
+    start_date?: string;
+    discount_id?: string | null;
+    tax_id?: string | null;
+    lines?: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
+  }) {
+    return apiRequest<Subscription>('/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   async subscribe(data: { plan_id: string; discount_code?: string }) {
@@ -152,6 +150,22 @@ export const subscriptionService = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  },
+
+  async pause(id: string) {
+    return apiRequest<any>(`/subscriptions/${id}/pause`, { method: 'POST' });
+  },
+
+  async resume(id: string) {
+    return apiRequest<any>(`/subscriptions/${id}/resume`, { method: 'POST' });
+  },
+
+  async renew(id: string) {
+    return apiRequest<any>(`/subscriptions/${id}/renew`, { method: 'POST' });
+  },
+
+  async close(id: string) {
+    return apiRequest<any>(`/subscriptions/${id}/close`, { method: 'POST' });
   },
 };
 

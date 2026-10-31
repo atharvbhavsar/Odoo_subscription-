@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { subscriptionService } from '../../services/quotation.service';
-import { Subscription } from '../../types';
+import { Subscription, CustomerProfile, Plan } from '../../types';
+import { catalogService } from '../../services/product.service';
 import { useAuth } from '../../context/AuthContext';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
 import { SubscriptionAddonsModal } from '../../components/subscriptions/SubscriptionAddonsModal';
 import {
   Repeat,
+  Plus,
   Pause,
   Play,
   XCircle,
@@ -48,6 +50,70 @@ export const SubscriptionsPage: React.FC = () => {
   const isCustomer = user?.role === 'customer';
   const today = new Date().toISOString().split('T')[0];
 
+  // New Subscription Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [availableCustomers, setAvailableCustomers] = useState<CustomerProfile[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
+  const [createForm, setCreateForm] = useState({
+    customer_id: '',
+    plan_id: '',
+    start_date: today,
+  });
+
+  const handleOpenCreateModal = async () => {
+    setShowCreateModal(true);
+    setCreateError(null);
+    try {
+      const [custs, plansData] = await Promise.all([
+        catalogService.getCustomers(),
+        catalogService.getPlans({ status: 'active' }),
+      ]);
+      setAvailableCustomers(custs);
+      setAvailablePlans(plansData);
+      if (custs.length > 0 && !createForm.customer_id) {
+        setCreateForm((prev) => ({ ...prev, customer_id: custs[0].id }));
+      }
+      if (plansData.length > 0 && !createForm.plan_id) {
+        setCreateForm((prev) => ({ ...prev, plan_id: plansData[0].id }));
+      }
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to load customers and plans');
+    }
+  };
+
+  const handleCreateSubscriptionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.customer_id) {
+      setCreateError('Please select a customer');
+      return;
+    }
+    if (!createForm.plan_id) {
+      setCreateError('Please select a subscription plan');
+      return;
+    }
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      const newSub = await subscriptionService.createSubscription({
+        customer_id: createForm.customer_id,
+        plan_id: createForm.plan_id,
+        start_date: createForm.start_date || today,
+      });
+      setShowCreateModal(false);
+      setCreateSuccess(`Subscription ${newSub.subscription_number || ''} created successfully!`);
+      setTimeout(() => setCreateSuccess(null), 5000);
+      await fetchSubscriptions();
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create subscription');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+
   const fetchSubscriptions = async () => {
     try {
       const data = await subscriptionService.getSubscriptions({
@@ -64,6 +130,10 @@ export const SubscriptionsPage: React.FC = () => {
 
   useEffect(() => {
     fetchSubscriptions();
+    const interval = setInterval(() => {
+      fetchSubscriptions();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   // Debounced search
@@ -142,10 +212,39 @@ export const SubscriptionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="pb-2 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-800">Subscriptions</h1>
-        <p className="text-sm text-slate-500">Live active recurring contracts, schedules, add-ons, and lifecycle management</p>
+      <div className="pb-2 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Subscriptions</h1>
+          <p className="text-sm text-slate-500">Live active recurring contracts, schedules, add-ons, and lifecycle management</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => fetchSubscriptions()}
+            disabled={loading}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition shadow-sm"
+            title="Refresh subscriptions in real time"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          {!isCustomer && (
+            <button
+              onClick={handleOpenCreateModal}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Subscription</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {createSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center space-x-2">
+          <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>{createSuccess}</span>
+        </div>
+      )}
 
       {/* Filter and Search Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
