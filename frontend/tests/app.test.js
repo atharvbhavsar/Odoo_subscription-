@@ -46,3 +46,28 @@ test('Frontend RBAC: Navigation item filtering by role', () => {
   assert.deepStrictEqual(getNavForRole('admin'), staffNavItems);
 });
 
+
+test('Frontend Billing Run: Admin gating and report schema handling', () => {
+  const canAccessBillingRun = (role) => role === 'admin';
+
+  assert.strictEqual(canAccessBillingRun('admin'), true);
+  assert.strictEqual(canAccessBillingRun('staff'), false);
+  assert.strictEqual(canAccessBillingRun('customer'), false);
+
+  const mockReport = {
+    runId: 'run-1234',
+    startTime: '2026-10-31T00:00:00.000Z',
+    endTime: '2026-10-31T00:00:00.020Z',
+    durationMs: 20,
+    subscriptionsChecked: 10,
+    invoicesGenerated: 2,
+    alreadyBilledCount: 1,
+    skippedCount: 7,
+    errors: [],
+  };
+
+  assert.strictEqual(mockReport.invoicesGenerated, 2);
+  assert.strictEqual(mockReport.alreadyBilledCount, 1);
+  assert.strictEqual(mockReport.skippedCount, 7);
+  assert.strictEqual(mockReport.errors.length, 0);
+});

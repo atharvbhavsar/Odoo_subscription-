@@ -9,6 +9,13 @@ export interface SkippedSubscriptionRecord {
   reason: string;
 }
 
+export interface AlreadyBilledRecord {
+  subscriptionId: string;
+  subscriptionNumber?: string;
+  periodStart: string;
+  reason: string;
+}
+
 export interface BillingRunResult {
   runId: string;
   startTime: string;
@@ -16,6 +23,8 @@ export interface BillingRunResult {
   durationMs: number;
   subscriptionsChecked: number;
   invoicesGenerated: number;
+  alreadyBilledCount: number;
+  alreadyBilledRecords: AlreadyBilledRecord[];
   skippedCount: number;
   skippedReasons: SkippedSubscriptionRecord[];
   errors: Array<{ subscriptionId: string; error: string }>;
@@ -79,6 +88,8 @@ export class BillingService {
       durationMs: 0,
       subscriptionsChecked: subscriptions.length,
       invoicesGenerated: 0,
+      alreadyBilledCount: 0,
+      alreadyBilledRecords: [],
       skippedCount: 0,
       skippedReasons: [],
       errors: [],
@@ -176,6 +187,13 @@ export class BillingService {
             if (existingInvoice) {
               // Already billed for this period, advance date safely to prevent infinite loop
               await db.execute('UPDATE subscriptions SET next_billing_date = ? WHERE id = ?', [periodEnd, sub.id]);
+              result.alreadyBilledCount++;
+              result.alreadyBilledRecords.push({
+                subscriptionId: sub.id,
+                subscriptionNumber: sub.subscription_number,
+                periodStart,
+                reason: `Period starting ${periodStart} was previously billed; safely skipped by idempotency constraint`,
+              });
               currentBillingDate = periodEnd;
               return;
             }
@@ -268,6 +286,8 @@ export class BillingService {
       targetDate: currentDate,
       generated: result.invoicesGenerated,
       checked: result.subscriptionsChecked,
+      alreadyBilledCount: result.alreadyBilledCount,
+      alreadyBilledRecords: result.alreadyBilledRecords,
       skippedCount: result.skippedCount,
       errorsCount: result.errors.length,
       skippedReasons: result.skippedReasons,

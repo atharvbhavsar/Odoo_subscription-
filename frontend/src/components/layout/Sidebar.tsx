@@ -13,14 +13,17 @@ import {
   Tag,
   CreditCard,
   User,
+  Play,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const isCustomer = user?.role === 'customer';
+  const isAdmin = user?.role === 'admin';
 
   const staffNavItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ...(isAdmin ? [{ to: '/billing-run', label: 'Billing Run (Admin)', icon: Play }] : []),
     { to: '/products', label: 'Products & Variants', icon: Package },
     { to: '/plans', label: 'Subscription Plans', icon: Layers },
     { to: '/taxes', label: 'Tax Rules', icon: Percent },

@@ -230,3 +230,31 @@ export interface QuotationTemplate {
   updated_at?: string;
   lines?: QuotationTemplateLine[];
 }
+
+export interface SkippedSubscriptionRecord {
+  subscriptionId: string;
+  subscriptionNumber?: string;
+  reason: string;
+}
+
+export interface AlreadyBilledRecord {
+  subscriptionId: string;
+  subscriptionNumber?: string;
+  periodStart: string;
+  reason: string;
+}
+
+export interface BillingRunResult {
+  runId: string;
+  startTime: string;
+  endTime: string;
+  durationMs: number;
+  subscriptionsChecked: number;
+  invoicesGenerated: number;
+  alreadyBilledCount: number;
+  alreadyBilledRecords: AlreadyBilledRecord[];
+  skippedCount: number;
+  skippedReasons: SkippedSubscriptionRecord[];
+  errors: Array<{ subscriptionId: string; error: string }>;
+  invoices: Array<{ id: string; invoiceNumber: string; amount: number; periodStart: string; periodEnd: string }>;
+}

@@ -13,7 +13,7 @@ billingRouter.post('/run', requireAuth, requireRole(['admin']), async (req: Requ
 
   res.json({
     data: result,
-    message: `Billing run ${result.runId} completed in ${result.durationMs}ms. Generated ${result.invoicesGenerated} invoices (${result.skippedCount} skipped, ${result.errors.length} errors).`,
+    message: `Billing run completed in ${result.durationMs}ms. Generated ${result.invoicesGenerated} invoices (${result.alreadyBilledCount} already billed, ${result.skippedCount} skipped, ${result.errors.length} errors).`,
   });
 });
 

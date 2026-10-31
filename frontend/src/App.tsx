@@ -17,6 +17,7 @@ import { SubscriptionsPage } from './pages/subscriptions/SubscriptionsPage';
 import { InvoicesPage } from './pages/invoices/InvoicesPage';
 import { PaymentsHistoryPage } from './pages/payments/PaymentsHistoryPage';
 import { CustomerPortalPage } from './pages/customer-portal/CustomerPortalPage';
+import { BillingRunPage } from './pages/billing/BillingRunPage';
 
 const RootRedirect: React.FC = () => {
   const { user } = useAuth();
@@ -47,6 +48,7 @@ export const App: React.FC = () => {
             <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/payments" element={<PaymentsHistoryPage />} />
             <Route path="/portal" element={<CustomerPortalPage />} />
+            <Route path="/billing-run" element={<BillingRunPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
