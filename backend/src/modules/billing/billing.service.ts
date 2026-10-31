@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../config/database';
 import { AuditService } from '../audit/audit.service';
+import { InvoiceService } from '../invoices/invoices.service';
 
 export interface SkippedSubscriptionRecord {
   subscriptionId: string;
@@ -180,7 +181,7 @@ export class BillingService {
             }
 
             const invoiceId = uuidv4();
-            const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+            const invoiceNumber = await InvoiceService.generateInvoiceNumber();
 
             // Create Invoice Snapshot
             await db.execute(

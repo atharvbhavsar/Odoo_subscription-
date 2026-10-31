@@ -10,7 +10,8 @@
     "test": "tsx tests/run_tests.ts",
     "test:auth": "tsx tests/auth_tests.ts && tsx tests/auth_http_tests.ts",
     "test:billing": "tsx tests/billing_tests.ts",
-    "test:all": "tsx tests/auth_tests.ts && tsx tests/auth_http_tests.ts && tsx tests/billing_tests.ts && tsx tests/run_tests.ts",
+    "test:invoice": "tsx tests/invoice_tests.ts",
+    "test:all": "tsx tests/auth_tests.ts && tsx tests/auth_http_tests.ts && tsx tests/billing_tests.ts && tsx tests/invoice_tests.ts && tsx tests/run_tests.ts",
     "migrate": "tsx src/config/migrate.ts",
     "seed": "tsx src/config/seed.ts"
   },

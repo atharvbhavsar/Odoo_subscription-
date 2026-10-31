@@ -6,12 +6,14 @@ import { useAuth } from '../../context/AuthContext';
 import { LoadingSpinner } from '../../components/common/Loading';
 import { Badge } from '../../components/common/Badge';
 import {
-  Receipt,
   FileDown,
   CreditCard,
   CheckCircle,
-  PlusCircle,
   DollarSign,
+  Search,
+  Filter,
+  Check,
+  XCircle,
 } from 'lucide-react';
 
 export const InvoicesPage: React.FC = () => {
@@ -19,6 +21,10 @@ export const InvoicesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [paymentSuccessMsg, setPaymentSuccessMsg] = useState<string | null>(null);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Manual payment modal state
   const [selectedInvoiceForManualPay, setSelectedInvoiceForManualPay] = useState<Invoice | null>(null);
@@ -30,8 +36,11 @@ export const InvoicesPage: React.FC = () => {
 
   const fetchInvoices = async () => {
     try {
-      const data = await invoiceService.getInvoices();
-      setInvoices(data);
+      const data = await invoiceService.getInvoices({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm ? searchTerm : undefined,
+      });
+      setInvoices(data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -41,21 +50,48 @@ export const InvoicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, []);
+  }, [statusFilter, searchTerm]);
+
+  // Confirm Draft Handler (Staff/Admin)
+  const handleConfirmDraft = async (inv: Invoice) => {
+    if (!window.confirm(`Confirm draft invoice ${inv.invoice_number}?`)) return;
+    setActionLoading(true);
+    try {
+      await invoiceService.confirmDraft(inv.id);
+      setPaymentSuccessMsg(`Invoice ${inv.invoice_number} has been confirmed successfully.`);
+      fetchInvoices();
+    } catch (err: any) {
+      alert(err.message || 'Failed to confirm draft invoice');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Cancel Invoice Handler (Staff/Admin)
+  const handleCancelInvoice = async (inv: Invoice) => {
+    const reason = window.prompt(`Provide cancellation reason for ${inv.invoice_number}:`, 'Operational cancellation');
+    if (!reason) return;
+    setActionLoading(true);
+    try {
+      await invoiceService.cancelInvoice(inv.id, reason);
+      setPaymentSuccessMsg(`Invoice ${inv.invoice_number} cancelled.`);
+      fetchInvoices();
+    } catch (err: any) {
+      alert(err.message || 'Failed to cancel invoice');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Razorpay Test Mode Checkout Flow
   const handleRazorpayPay = async (inv: Invoice) => {
     setActionLoading(true);
     setPaymentSuccessMsg(null);
     try {
-      // 1. Create order on backend (backend calculates authoritative amount_due)
       const order = await paymentService.createRazorpayOrder(inv.id);
-
-      // 2. In Test Mode / local dev, simulate Razorpay popup and signature verification
       const mockPaymentId = `pay_rzp_mock_${Date.now()}`;
       const mockSignature = `mock_sig_${Date.now()}`;
 
-      // 3. Send signature to backend for verification & balance update
       const result = await paymentService.verifyPayment({
         invoice_id: inv.id,
         gateway_order_id: order.orderId,
@@ -100,9 +136,42 @@ export const InvoicesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="pb-2 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-800">Invoices & Billing</h1>
-        <p className="text-sm text-slate-500">Scheduled invoices, immutable price snapshots, and payment reconciliation</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Invoices & Billing</h1>
+          <p className="text-sm text-slate-500">Scheduled invoices, immutable price snapshots, and payment reconciliation</p>
+        </div>
+
+        {/* Filter controls */}
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search invoice or customer..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-52"
+            />
+          </div>
+
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs">
+            <Filter className="w-3.5 h-3.5 text-slate-500 ml-1.5" />
+            {['all', 'confirmed', 'partially_paid', 'paid', 'cancelled'].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-2.5 py-1 rounded-lg font-medium capitalize transition ${
+                  statusFilter === st
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {st.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {paymentSuccessMsg && (
@@ -156,8 +225,34 @@ export const InvoicesPage: React.FC = () => {
                       <FileDown className="w-4 h-4" />
                     </a>
 
+                    {/* Confirm Draft (Staff/Admin) */}
+                    {inv.status === 'draft' && !isCustomer && (
+                      <button
+                        onClick={() => handleConfirmDraft(inv)}
+                        disabled={actionLoading}
+                        title="Confirm Draft Invoice"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Confirm</span>
+                      </button>
+                    )}
+
+                    {/* Cancel Invoice (Staff/Admin, only if unpaid) */}
+                    {(inv.status === 'draft' || inv.status === 'confirmed') && Number(inv.amount_paid) === 0 && !isCustomer && (
+                      <button
+                        onClick={() => handleCancelInvoice(inv)}
+                        disabled={actionLoading}
+                        title="Cancel Invoice"
+                        className="inline-flex items-center space-x-1 px-2 py-1 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Cancel</span>
+                      </button>
+                    )}
+
                     {/* Pay with Razorpay Test Mode */}
-                    {inv.amount_due > 0 && (
+                    {inv.amount_due > 0 && inv.status !== 'cancelled' && (
                       <button
                         onClick={() => handleRazorpayPay(inv)}
                         disabled={actionLoading}
@@ -170,7 +265,7 @@ export const InvoicesPage: React.FC = () => {
                     )}
 
                     {/* Staff/Admin Manual Record Payment */}
-                    {inv.amount_due > 0 && !isCustomer && (
+                    {inv.amount_due > 0 && inv.status !== 'cancelled' && !isCustomer && (
                       <button
                         onClick={() => {
                           setSelectedInvoiceForManualPay(inv);
@@ -189,7 +284,7 @@ export const InvoicesPage: React.FC = () => {
             ) : (
               <tr>
                 <td colSpan={8} className="py-8 text-center text-slate-400 text-sm">
-                  No invoices generated yet.
+                  No invoices found matching criteria.
                 </td>
               </tr>
             )}
@@ -263,4 +358,3 @@ export const InvoicesPage: React.FC = () => {
     </div>
   );
 };
-
