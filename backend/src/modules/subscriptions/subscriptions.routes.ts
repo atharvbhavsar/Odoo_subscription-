@@ -341,6 +341,10 @@ subscriptionsRouter.post('/:id/close', requireAuth, async (req: Request, res: Re
     return res.status(400).json({ error: { code: 'ALREADY_CLOSED', message: 'Subscription is already closed' } });
   }
 
+  if (sub.status === 'expired') {
+    return res.status(400).json({ error: { code: 'ALREADY_EXPIRED', message: 'Subscription is already expired' } });
+  }
+
   await db.transaction(async () => {
     // 1. Mark subscription closed with closed_at and snap end_date
     await db.execute(
