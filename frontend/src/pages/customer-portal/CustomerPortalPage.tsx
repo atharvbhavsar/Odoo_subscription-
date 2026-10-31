@@ -217,6 +217,17 @@ export const CustomerPortalPage: React.FC = () => {
     setActionLoading(true);
     setAlertMsg(null);
     try {
+      // Ensure Razorpay SDK is loaded in browser
+      if (typeof (window as any).Razorpay === 'undefined') {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load Razorpay payment SDK'));
+          document.body.appendChild(s);
+        });
+      }
+
       const order = await paymentService.createRazorpayOrder(inv.id);
 
       if (typeof (window as any).Razorpay !== 'undefined') {
@@ -236,14 +247,16 @@ export const CustomerPortalPage: React.FC = () => {
                 gateway_signature: response.razorpay_signature,
               });
               setAlertMsg({ type: 'success', text: `Payment of $${order.amount.toFixed(2)} verified successfully!` });
-              loadCustomerData();
+              await loadCustomerData();
             } catch (err: any) {
-              alert(err.message || 'Payment verification failed');
+              setAlertMsg({ type: 'error', text: err.message || 'Payment verification failed' });
+            } finally {
+              setActionLoading(false);
             }
           },
           prefill: {
-            name: user?.name,
-            email: user?.email,
+            name: user?.name || 'Customer',
+            email: user?.email || 'customer@acme.com',
           },
           theme: {
             color: '#4f46e5',
@@ -254,33 +267,21 @@ export const CustomerPortalPage: React.FC = () => {
             },
           },
         });
+
+        rzp.on('payment.failed', (response: any) => {
+          setAlertMsg({ type: 'error', text: response.error?.description || 'Payment was cancelled or declined' });
+          setActionLoading(false);
+        });
+
         rzp.open();
-        setActionLoading(false);
-        return;
+      } else {
+        throw new Error('Razorpay SDK could not be initialized');
       }
-
-      // Offline / fallback verification
-      const mockPaymentId = `pay_rzp_${Date.now()}`;
-      const mockSignature = `mock_sig_${Date.now()}`;
-
-      await paymentService.verifyPayment({
-        invoice_id: inv.id,
-        gateway_order_id: order.orderId,
-        gateway_payment_id: mockPaymentId,
-        gateway_signature: mockSignature,
-      });
-
-      setAlertMsg({
-        type: 'success',
-        text: `Payment of $${order.amount.toFixed(2)} for ${inv.invoice_number} verified and settled successfully!`,
-      });
-      await loadCustomerData();
     } catch (err: any) {
       setAlertMsg({
         type: 'error',
         text: err.message || 'Payment processing failed. Please try again.',
       });
-    } finally {
       setActionLoading(false);
     }
   };

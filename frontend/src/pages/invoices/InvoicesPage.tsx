@@ -112,7 +112,7 @@ export const InvoicesPage: React.FC = () => {
         const rzp = new (window as any).Razorpay({
           key: order.keyId,
           amount: order.amountInPaise,
-          currency: order.currency || 'USD',
+          currency: order.currency || 'INR',
           name: 'Brightloop Subscription Manager',
           description: `Settlement for Invoice #${inv.invoice_number}`,
           order_id: order.orderId,

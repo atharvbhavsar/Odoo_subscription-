@@ -9,8 +9,8 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL || '',
   SESSION_SECRET: process.env.SESSION_SECRET || 'brightloop-session-secret-dev',
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_12345',
-  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'rzp_test_mock_secret_67890',
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_TuQtACkOb0gXaC',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'Jvca6aLus3ucpN5CpDVJqymU',
 
   // Email delivery configuration
   SMTP_HOST: process.env.SMTP_HOST || 'smtp.mailtrap.io',
